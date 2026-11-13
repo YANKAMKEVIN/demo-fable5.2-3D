@@ -6,6 +6,18 @@ Aucune texture, aucun modèle 3D importé, aucun fichier son : le relief, le cli
 
 Construit au fil d'une conversation avec Claude (Anthropic).
 
+## Aperçu
+
+![La planète tellurique vue depuis l'orbite, avec ses anneaux et le panneau de réglages](docs/01-orbite.png)
+
+| | |
+|---|---|
+| ![Monde de lave](docs/02-monde-de-lave.png) Monde de lave | ![Géante gazeuse](docs/03-geante-gazeuse.png) Géante gazeuse |
+| ![Vue du système et de ses six mondes](docs/04-systeme.png) Le système et ses six mondes | ![Descente vers la surface, vue d'en haut](docs/05-descente.png) Pendant la descente |
+| ![Au sol : troupeau, forêt, volants et anneaux dans le ciel](docs/06-au-sol.png) Au sol, à pied | ![En vaisseau au-dessus d'un troupeau](docs/07-en-vaisseau.png) En vaisseau |
+
+Ces captures viennent de `index.html`, sans retouche. Elles ont été prises avec un rendu logiciel (sans carte graphique) : sur une vraie machine, l'image est la même mais fluide.
+
 ## Lancer la démo
 
 Ouvrez `index.html` dans un navigateur récent (Chrome, Edge, Firefox, Safari), avec l'accélération matérielle activée. Une connexion est nécessaire au premier chargement : la page récupère three.js (r128) et deux polices depuis un CDN.
@@ -28,6 +40,7 @@ Pour la mettre en ligne, activez GitHub Pages sur la branche principale : `index
 | `index.html` | La démo complète, en un seul fichier |
 | `ile-au-phare.html` | La première démo de la série : une île générée, avec phare, forêt et cycle jour/nuit |
 | `VIDEO-LINKEDIN.md` | Script de vidéo et texte de post pour présenter la démo sur LinkedIn |
+| `docs/` | Captures d'écran utilisées dans ce README |
 
 ## Comment ça marche, en bref
 
