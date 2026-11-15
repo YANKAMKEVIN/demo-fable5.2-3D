@@ -13,7 +13,7 @@ Construit au fil d'une conversation avec Claude (Anthropic).
 | | |
 |---|---|
 | ![Monde de lave](docs/02-monde-de-lave.png) Monde de lave | ![Géante gazeuse](docs/03-geante-gazeuse.png) Géante gazeuse |
-| ![Vue du système et de ses six mondes](docs/04-systeme.png) Le système et ses six mondes | ![Descente vers la surface, vue d'en haut](docs/05-descente.png) Pendant la descente |
+| ![Vue du système et de ses six mondes](docs/04-systeme.png) Le système et ses six mondes | ![Fin de la descente : la côte, un bosquet et un troupeau](docs/05-descente.png) Fin de la descente |
 | ![Au sol : troupeau, forêt, volants et anneaux dans le ciel](docs/06-au-sol.png) Au sol, à pied | ![En vaisseau au-dessus d'un troupeau](docs/07-en-vaisseau.png) En vaisseau |
 
 Ces captures viennent de `index.html`, sans retouche. Elles ont été prises avec un rendu logiciel (sans carte graphique) : sur une vraie machine, l'image est la même mais fluide.
