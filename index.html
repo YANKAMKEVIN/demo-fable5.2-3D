@@ -53,6 +53,22 @@
     -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
   }
   .title { display: flex; flex-direction: column; gap: 6px; flex: none; }
+  .title .card-body { display: flex; flex-direction: column; gap: 6px; }
+  /* Folding panels: each card can shrink to a one-line bar so the planet keeps the screen. */
+  .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+  .card-head > div { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .fold { font: inherit; background: transparent; color: var(--muted); border: 0; padding: 0; margin: 0; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+  .fold:hover { color: var(--fg); }
+  .fold svg { flex: none; transition: transform 0.2s ease; }
+  .fold[aria-expanded="false"] svg { transform: rotate(-90deg); }
+  .fold.bar { width: 100%; min-height: 24px; justify-content: space-between; text-align: left; font-family: var(--font-display); font-weight: 600; font-size: 13px; letter-spacing: 0.02em; color: var(--fg); }
+  .fold.bar svg { color: var(--muted); }
+  .fold.icon { flex: none; width: 28px; height: 28px; justify-content: center; border: 1px solid var(--line); border-radius: 8px; margin: -3px -5px 0 0; }
+  .fold.icon:hover { border-color: var(--accent); }
+  .card.folded { padding-block: 9px; }
+  .title.folded h1 { display: none; }
+  .title.folded .fold.icon { margin-block: -4px; }
+  @media (prefers-reduced-motion: reduce) { .fold svg { transition: none; } }
   .hud > .card:not(.title) { flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
   @media (max-height: 640px) { .hint { display: none; } .hud { gap: 8px; padding-block: 10px; } .card { padding: 10px 14px; } }
   h1 { font-family: var(--font-display); font-weight: 700; font-size: 22px; line-height: 1.1; letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
@@ -61,7 +77,7 @@
   .planet-id span { color: var(--muted); }
   .hint { margin: 0; color: var(--muted); font-size: 12.5px; }
 
-  .controls { display: flex; flex-direction: column; gap: 12px; }
+  .controls, .controls .card-body { display: flex; flex-direction: column; gap: 12px; }
   .presets { display: flex; flex-wrap: wrap; gap: 6px; }
   .presets button {
     font: inherit; font-size: 12.5px; font-weight: 500;
@@ -110,7 +126,7 @@
   .photo .hud, .photo #stick, .photo #syslabels { opacity: 0; pointer-events: none; }
   .photo .hud .card { pointer-events: none; }
   #unphoto { position: absolute; top: 16px; right: max(16px, env(safe-area-inset-right, 0px)); opacity: 0.6; }
-  .surface { display: flex; flex-direction: column; gap: 10px; }
+  .surface, .surface .card-body { display: flex; flex-direction: column; gap: 10px; }
   .site { margin: 0; font-size: 13px; font-variant-numeric: tabular-nums; }
   .site strong { font-family: var(--font-display); font-weight: 600; }
   .how { color: var(--muted); font-size: 12.5px; flex: 1 1 150px; min-width: 0; }
@@ -130,7 +146,7 @@
     .card { width: 100%; padding: 11px 13px; }
     h1 { font-size: 18px; }
     .hint { display: none; }
-    .controls { gap: 9px; }
+    .controls, .controls .card-body { gap: 9px; }
     .presets { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
     .presets::-webkit-scrollbar { display: none; }
     .presets button { flex: none; }
@@ -145,9 +161,15 @@
   <canvas id="scene" tabindex="0" aria-label="Scène 3D : une planète générée par le code, avec nuages, anneaux, deux lunes et leurs éclipses. Glissez pour tourner, molette ou pincement pour zoomer, flèches du clavier pour tourner."></canvas>
 
   <div class="hud">
-    <header class="card title">
-      <h1>Atelier de planètes</h1>
-      <p class="planet-id"><strong id="pname">Veloria-4</strong> <span id="ptype">· monde tellurique</span></p>
+    <header class="card title" data-fold="title">
+      <div class="card-head">
+        <div>
+          <h1>Atelier de planètes</h1>
+          <p class="planet-id"><strong id="pname">Veloria-4</strong> <span id="ptype">· monde tellurique</span></p>
+        </div>
+        <button class="fold icon" type="button" aria-expanded="true" aria-controls="title-body" aria-label="Replier ou déplier le panneau de titre" title="Replier ou déplier"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
+      <div class="card-body" id="title-body">
       <p class="hint" id="hint">Continents, climat, nuages, anneaux et éclipses sont calculés pixel par pixel, en direct. Glissez pour tourner, zoomez pour approcher, double-cliquez sur un lieu pour vous y poser.</p>
       <div class="tools">
         <button id="b-system" class="tool" type="button">Système</button>
@@ -156,9 +178,12 @@
         <button id="b-share" class="tool" type="button">Partager</button>
       </div>
       <p class="toast" id="toast" role="status" hidden></p>
+      </div>
     </header>
 
-    <section class="card controls" id="controls" aria-label="Réglages de la planète">
+    <section class="card controls" id="controls" aria-label="Réglages de la planète" data-fold="controls">
+      <button class="fold bar" type="button" aria-expanded="true" aria-controls="controls-body"><span>Réglages</span><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="card-body" id="controls-body">
       <div class="presets" role="group" aria-label="Type de monde">
         <button type="button" data-preset="tellurique" aria-pressed="true">Tellurique</button>
         <button type="button" data-preset="ocean" aria-pressed="false">Océan</button>
@@ -181,9 +206,12 @@
         <label class="check" for="auto"><input id="auto" type="checkbox" checked> Caméra en orbite</label>
       </div>
       <p class="stats" id="stats" aria-live="off">Allumage du soleil…</p>
+      </div>
     </section>
 
-    <section class="card surface" id="surface" aria-label="À la surface" hidden>
+    <section class="card surface" id="surface" aria-label="À la surface" data-fold="surface" hidden>
+      <button class="fold bar" type="button" aria-expanded="true" aria-controls="surface-body"><span>À la surface</span><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="card-body" id="surface-body">
       <p class="site" id="site">Descente en cours…</p>
       <p class="hint" id="fauna" style="display:block"></p>
       <div class="field"><label for="speed2">Vitesse du temps</label><input id="speed2" type="range" min="0" max="8" step="0.1" value="1"></div>
@@ -192,6 +220,7 @@
         <span class="how" id="how">Glissez pour regarder. Marchez avec les flèches, ZQSD ou la manette à l'écran.</span>
       </div>
       <p class="stats" id="stats2" aria-live="off"></p>
+      </div>
     </section>
 
     <section class="card surface" id="syscard" aria-label="Système" hidden>
@@ -959,11 +988,17 @@ void main(){
      ===================================================================== */
   const stage = canvas.parentElement, controlsCard = document.querySelector('.controls'), titleCard = document.querySelector('.title');
   let quality = 1, firstSize = true;
-  // keep the planet clear of the panels: shift the view right on wide screens, up on phones
+  // keep the planet clear of the panels: shift the view right on wide screens, up on phones.
+  // The shift follows the panels (eased in the frame loop), so the planet glides back when one folds.
+  const view = { dy: 0, tDy: 0, k: 1, tK: 1 };
+  function measureView() {
+    view.tDy = (controlsCard.offsetHeight - titleCard.offsetHeight) / 2;
+    view.tK = controlsCard.classList.contains('folded') ? 0.4 : 1;
+  }
   function applyView() {
     const w = Math.max(1, stage.clientWidth), h = Math.max(1, stage.clientHeight);
-    if (w < 700) camera.setViewOffset(w, h, 0, voff * (controlsCard.offsetHeight - titleCard.offsetHeight) / 2, w, h);
-    else camera.setViewOffset(w, h, -voff * Math.min(180, w * 0.14), 0, w, h);
+    if (w < 700) camera.setViewOffset(w, h, 0, voff * view.dy, w, h);
+    else camera.setViewOffset(w, h, -voff * view.k * Math.min(180, w * 0.14), 0, w, h);
     camera.updateProjectionMatrix();
     sysCam.fov = camera.fov; sysCam.aspect = w / h; sysCam.updateProjectionMatrix();
   }
@@ -973,13 +1008,49 @@ void main(){
     renderer.setPixelRatio(pr); renderer.setSize(w, h, false);
     starUniforms.uPx.value = Math.max(1, pr);
     camera.aspect = w / h;
-    const narrow = w < 700;
     camera.fov = w / h < 0.8 ? 52 : 40;
-    applyView();
+    measureView(); applyView();
     if (firstSize) { firstSize = false; if (w / h < 0.8) { cam.r = cam.tR = 6.4; } }
   }
   if (window.ResizeObserver) new ResizeObserver(resize).observe(stage);
   window.addEventListener('resize', resize);
+
+  /* =====================================================================
+     Folding panels: a card shrinks to a bar; the choice is remembered
+     ===================================================================== */
+  const store = {
+    get(k) { try { return window.localStorage.getItem('atelier.' + k); } catch (e) { return null; } },
+    set(k, v) { try { window.localStorage.setItem('atelier.' + k, v); } catch (e) { /* private mode: the choice lasts for this visit only */ } }
+  };
+  const folds = {};
+  const smallScreen = () => !!window.matchMedia && window.matchMedia('(max-width: 560px)').matches;
+  let autoFoldT = 0;
+  function setFold(key, folded, remember) {
+    const f = folds[key]; if (!f) return;
+    f.card.classList.toggle('folded', folded);
+    f.btn.setAttribute('aria-expanded', String(!folded));
+    f.body.hidden = folded;
+    if (remember) store.set('fold.' + key, folded ? '1' : '0');
+  }
+  // on a phone the settings deck covers most of the planet: fold it after a few idle seconds, unless a choice was made before
+  function armAutoFold() {
+    clearTimeout(autoFoldT);
+    const f = folds.controls;
+    if (!f || store.get('fold.controls') !== null || !smallScreen() || f.card.classList.contains('folded')) return;
+    autoFoldT = setTimeout(() => {
+      if (f.card.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') { armAutoFold(); return; }
+      if (store.get('fold.controls') === null && smallScreen()) setFold('controls', true, false);
+    }, 6000);
+  }
+  document.querySelectorAll('[data-fold]').forEach((card) => {
+    const key = card.dataset.fold, btn = card.querySelector('.fold'), body = card.querySelector('.card-body');
+    folds[key] = { card: card, btn: btn, body: body };
+    btn.addEventListener('click', () => { clearTimeout(autoFoldT); setFold(key, !card.classList.contains('folded'), true); measureView(); });
+    if (store.get('fold.' + key) === '1') setFold(key, true, false);
+  });
+  ['pointerdown', 'input', 'keydown'].forEach((t) => folds.controls.card.addEventListener(t, armAutoFold));
+  // the view offset follows the size of the panels, so the planet recentres when one folds
+  if (window.ResizeObserver) { const ro = new ResizeObserver(measureView); ro.observe(controlsCard); ro.observe(titleCard); }
 
   /* =====================================================================
      Controls
@@ -2062,7 +2133,10 @@ void main(){
     moons[0].material.uniforms.cAtmo.value.copy(cur.col.atmo); moons[1].material.uniforms.cAtmo.value.copy(cur.col.atmo);
 
     const vt = (mode === 'orbit' && !photo) ? 1 : 0;
-    if (Math.abs(vt - voff) > 0.002) { voff += (vt - voff) * (1 - Math.exp(-dt * 4)); applyView(); }
+    if (Math.abs(vt - voff) > 0.002 || Math.abs(view.tDy - view.dy) > 0.5 || Math.abs(view.tK - view.k) > 0.002) {
+      const e = 1 - Math.exp(-dt * 4);
+      voff += (vt - voff) * e; view.dy += (view.tDy - view.dy) * e; view.k += (view.tK - view.k) * e; applyView();
+    }
 
     const ph = transit.phase;
     if (mode === 'system') renderSystem(dt);
@@ -2098,8 +2172,8 @@ void main(){
     }
     setTargetFromPreset(state.preset, saved && saved.sliders);
     tgt.seed.fromArray(state.seed);
-    snapCurrent(); syncUI(); resize();
-    afterStart();
+    snapCurrent(); syncUI(); resize(); view.dy = view.tDy; view.k = view.tK; applyView();
+    afterStart(); armAutoFold();
     requestAnimationFrame(frame);
   }
   const hot = window.claude && window.claude.hot;
