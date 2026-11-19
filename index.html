@@ -123,6 +123,17 @@
   #syslabels button small { display: block; color: var(--muted); font-size: 11px; }
   #syslabels button.here { border-color: var(--accent); }
   #syslabels button:hover { border-color: var(--accent); }
+  /* "Land here": a reticle follows the pointer over the planet; on touch screens a ring fills during a long press. */
+  #reticle { position: absolute; left: 0; top: 0; pointer-events: none; }
+  #reticle i { position: absolute; left: -14px; top: -14px; width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid var(--accent); box-shadow: 0 0 0 1px rgba(3, 4, 11, 0.55), inset 0 0 0 1px rgba(3, 4, 11, 0.55); }
+  #reticle i::before { content: ""; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%; background: var(--accent); }
+  #reticle svg { position: absolute; left: -22px; top: -22px; width: 44px; height: 44px; transform: rotate(-90deg); }
+  #reticle circle { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 119.4; stroke-dashoffset: 119.4; }
+  #reticle.pressing circle { stroke-dashoffset: 0; transition: stroke-dashoffset 0.6s linear; }
+  #reticle p { position: absolute; left: 0; top: 0; margin: 0; white-space: nowrap; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 4px 9px; font-size: 12px; line-height: 1.3; font-variant-numeric: tabular-nums; }
+  #reticle b { display: block; font-weight: 600; }
+  #reticle span { display: block; color: var(--muted); font-size: 11px; }
+  #reticle span:empty { display: none; }
   .photo .hud, .photo #stick, .photo #syslabels { opacity: 0; pointer-events: none; }
   .photo .hud .card { pointer-events: none; }
   #unphoto { position: absolute; top: 16px; right: max(16px, env(safe-area-inset-right, 0px)); opacity: 0.6; }
@@ -229,6 +240,7 @@
     </section>
   </div>
   <div id="syslabels" hidden></div>
+  <div id="reticle" aria-hidden="true" hidden><i></i><svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="19"/></svg><p id="ret-label"><b id="ret-where"></b><span id="ret-how"></span></p></div>
   <button id="unphoto" class="tool" type="button" hidden>Afficher l'interface</button>
   <div id="stick" hidden aria-hidden="true"><i></i></div>
   <div id="fade"></div>
@@ -1825,14 +1837,111 @@ void main(){
     $('fly').textContent = ship.on ? 'Marcher' : 'Piloter le vaisseau';
     $('how').textContent = ship.on ? HOW_FLY : HOW_WALK;
   });
+  /* ---------- "land here": the reticle under the pointer, and the long press on touch screens ---------- */
+  const rayc = new THREE.Raycaster(), unitSphere = new THREE.Sphere(new THREE.Vector3(), 1);
+  // the point of the planet under a screen position, in the planet's own frame (null over empty space)
+  function pickPlanet(cx, cy) {
+    const r = canvas.getBoundingClientRect();
+    rayc.setFromCamera(new THREE.Vector2((cx - r.left) / r.width * 2 - 1, -((cy - r.top) / r.height * 2 - 1)), camera);
+    const hit = rayc.ray.intersectSphere(unitSphere, new THREE.Vector3());
+    return hit ? hit.applyQuaternion(planet.getWorldQuaternion(new THREE.Quaternion()).invert()) : null;
+  }
   canvas.addEventListener('dblclick', (ev) => {
     if (mode !== 'orbit') return;
-    const r = canvas.getBoundingClientRect();
-    const rc = new THREE.Raycaster();
-    rc.setFromCamera(new THREE.Vector2((ev.clientX - r.left) / r.width * 2 - 1, -((ev.clientY - r.top) / r.height * 2 - 1)), camera);
-    const hit = rc.ray.intersectSphere(new THREE.Sphere(new THREE.Vector3(), 1), new THREE.Vector3());
-    if (hit) beginLanding(hit.applyQuaternion(planet.getWorldQuaternion(new THREE.Quaternion()).invert()));
+    const hit = pickPlanet(ev.clientX, ev.clientY);
+    if (hit) beginLanding(hit);
   });
+  // one pixel of the landing probe tells what lies under the pointer: height, sea-level temperature, moisture
+  const hoverRT = new THREE.WebGLRenderTarget(1, 1, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: false, generateMipmaps: false });
+  const hoverBuf = new Uint8Array(4);
+  const hoverU = { uSeed: pu.uSeed, uTemp: pu.uTemp, uSite: { value: new THREE.Vector3(0, 0, 1) }, uEast: { value: new THREE.Vector3(1, 0, 0) }, uNorth: { value: new THREE.Vector3(0, 1, 0) }, uHalf: { value: 0 } };
+  const hoverMat = new THREE.ShaderMaterial({ uniforms: hoverU, vertexShader: QUAD_VERT, fragmentShader: PROBE_FRAG, depthTest: false, depthWrite: false });
+  // same thresholds as the planet shader, so the word matches the colour under the pointer
+  function terrainName(h, Tsea, M) {
+    const lava = cur.lava > 0.5;
+    if (h < cur.sea) {
+      if (lava) return 'mer de lave';
+      if (Tsea < 0.06) return 'banquise';
+      return (cur.sea - h) / 0.16 < 0.3 ? 'eaux côtières' : 'océan';
+    }
+    const elev = (h - cur.sea) / Math.max(1 - cur.sea, 0.05), T = Tsea - elev * 1.1, high = elev * 2.2 > 0.45;
+    if (lava) return high ? 'relief volcanique' : 'plaine de cendres';
+    if (T < 0.18) return high ? 'sommets enneigés' : 'neige et glace';
+    if (elev * 2 < 0.035) return 'rivage';
+    if (high) return 'montagne';
+    if (T > 0.95 || M < 0.5) return 'terres arides';
+    return state.preset === 'tellurique' || state.preset === 'ocean' ? 'plaine verte' : 'plaine';
+  }
+  function terrainAt(p) {
+    hoverU.uSite.value.copy(p);
+    quad.material = hoverMat;
+    renderer.setRenderTarget(hoverRT); renderer.render(quadScene, quadCam);
+    renderer.readRenderTargetPixels(hoverRT, 0, 0, 1, 1, hoverBuf);
+    renderer.setRenderTarget(null);
+    quad.material = surfMat;
+    return terrainName((hoverBuf[0] * 256 + hoverBuf[1]) / 65535, hoverBuf[2] / 255 * 3 - 1, (hoverBuf[3] / 255 - 0.25) / 0.5);
+  }
+  const latText = (y) => { const lat = Math.asin(clamp(y, -1, 1)) * 180 / Math.PI; return Math.abs(lat).toFixed(0) + '° ' + (lat >= 0 ? 'N' : 'S'); };
+  const reticle = $('reticle'), retLabel = $('ret-label'), retWhere = $('ret-where'), retHow = $('ret-how');
+  const hover = { on: false, x: 0, y: 0, t: 0, hit: false, until: 0, press: null, touch: false, last: 0, lw: 0, lh: 0 };
+  const PRESS_WAIT = 0.25, PRESS_FILL = 0.6;
+  const buzz = (ms) => { if (navigator.vibrate && navigator.userActivation && navigator.userActivation.hasBeenActive) navigator.vibrate(ms); };
+  const endPress = () => { hover.press = null; reticle.classList.remove('pressing'); };
+  canvas.addEventListener('pointermove', (ev) => {
+    if (ev.pointerType === 'mouse') { hover.on = true; hover.touch = false; hover.x = ev.clientX; hover.y = ev.clientY; }
+    const pr = hover.press;
+    if (pr && (ev.pointerId !== pr.id || Math.hypot(ev.clientX - pr.x, ev.clientY - pr.y) > 10)) { endPress(); hover.until = 0; }
+  });
+  canvas.addEventListener('pointerleave', (ev) => { if (ev.pointerType === 'mouse') hover.on = false; });
+  canvas.addEventListener('pointerdown', (ev) => {
+    if (ev.pointerType === 'mouse') return;
+    if (hover.press || pointers.size > 1 || mode !== 'orbit') { endPress(); hover.until = 0; return; }
+    hover.on = false; hover.touch = true; hover.x = ev.clientX; hover.y = ev.clientY; hover.t = 0;
+    if (pickPlanet(ev.clientX, ev.clientY) && cur.gas < 0.5) hover.press = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, held: 0 };
+    hover.until = performance.now() + 2600; // a short tap leaves the reticle and its hint on screen for a moment
+  });
+  const liftPress = (ev) => { if (hover.press && ev.pointerId === hover.press.id) endPress(); };
+  canvas.addEventListener('pointerup', liftPress); canvas.addEventListener('pointercancel', liftPress);
+  canvas.addEventListener('contextmenu', (ev) => { if (hover.press) ev.preventDefault(); });
+  function updateReticle(now) {
+    const pr = hover.press, step = Math.min(0.25, (now - hover.last) / 1000); hover.last = now;
+    if (pr && mode === 'orbit') {
+      // the hold is counted in frames actually shown, so a stalled page cannot turn a tap into a landing
+      pr.held += step;
+      if (pr.held > PRESS_WAIT) reticle.classList.add('pressing');
+      if (pr.held > PRESS_WAIT + PRESS_FILL) {
+        const hit = pickPlanet(pr.x, pr.y);
+        endPress(); hover.until = 0;
+        if (hit) { buzz(20); beginLanding(hit); }
+      }
+    } else if (pr) endPress();
+    const show = mode === 'orbit' && !photo && (!!hover.press || (hover.on && !pointers.size) || now < hover.until);
+    if (show && now - hover.t > 200) {
+      hover.t = now;
+      const p = pickPlanet(hover.x, hover.y);
+      hover.hit = !!p;
+      if (p) {
+        const gasW = cur.gas > 0.5;
+        const where = gasW ? 'Géante gazeuse' : latText(p.y) + ' · ' + terrainAt(p);
+        const how = gasW ? 'Pas de sol où se poser' : (hover.touch ? 'Maintenez le doigt pour vous poser ici' : 'Double-cliquez pour vous poser ici');
+        if (retWhere.textContent !== where) { retWhere.textContent = where; hover.lw = 0; }
+        if (retHow.textContent !== how) { retHow.textContent = how; hover.lw = 0; }
+      }
+    }
+    if (!show || !hover.hit) { if (!reticle.hidden) reticle.hidden = true; return; }
+    const r = stage.getBoundingClientRect(), x = hover.x - r.left, y = hover.y - r.top;
+    reticle.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
+    if (reticle.hidden) reticle.hidden = false;
+    if (!hover.lw) { hover.lw = retLabel.offsetWidth; hover.lh = retLabel.offsetHeight; }
+    // the label sits beside the pointer; under a finger, or near an edge, it moves above or below instead
+    const lw = hover.lw, lh = hover.lh;
+    let lx = 24, ly = -19;
+    if (hover.touch || x + 24 + lw > r.width - 8) {
+      if (!hover.touch && x - 24 - lw >= 8) lx = -24 - lw;
+      else { lx = clamp(-lw / 2, 8 - x, r.width - 8 - lw - x); ly = y - 34 - lh > 8 ? -34 - lh : 34; }
+    }
+    retLabel.style.transform = 'translate(' + lx.toFixed(0) + 'px,' + ly.toFixed(0) + 'px)';
+  }
   window.addEventListener('keydown', (ev) => {
     if (ev.code === 'Escape' && photo) setPhoto(false);
     if (mode !== 'surface' || (ev.target && ev.target.tagName === 'INPUT')) return;
@@ -2144,6 +2253,7 @@ void main(){
     else if (ph === 'dissolve') surfFrame(dt, now, sm(0, 1, transit.t / 1.1), true);
     else if (ph === 'undissolve') surfFrame(dt, now, 1 - sm(0, 1, transit.t / 1.1), true);
     else renderOrbit();
+    updateReticle(now);
     audioFrame();
 
     frames++;
