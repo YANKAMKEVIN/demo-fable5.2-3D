@@ -138,7 +138,16 @@
   #syslabels button { position: absolute; left: 0; top: 0; pointer-events: auto; font: inherit; font-size: 12px; line-height: 1.25; text-align: left; white-space: nowrap; background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 4px 9px; cursor: pointer; }
   #syslabels button small { display: block; color: var(--muted); font-size: 11px; }
   #syslabels button.here { border-color: var(--accent); }
-  #syslabels button:hover { border-color: var(--accent); }
+  #syslabels button.here::after { content: "Vous êtes ici"; display: block; margin-top: 1px; color: var(--accent); font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+  #syslabels button:hover, #syslabels button.open { border-color: var(--accent); }
+  /* System view: a short card introduces a world before the trip */
+  #worldcard { position: absolute; left: 0; top: 0; z-index: 2; width: 248px; padding: 12px 14px; display: flex; flex-direction: column; gap: 9px; }
+  #worldcard dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 12.5px; }
+  #worldcard dt { color: var(--muted); }
+  #worldcard dd { margin: 0; }
+  #worldcard .btn { align-self: flex-start; }
+  .here-tag { margin: 0; color: var(--accent); font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+  .photo #worldcard { display: none; }
   /* "Land here": a reticle follows the pointer over the planet; on touch screens a ring fills during a long press. */
   #reticle { position: absolute; left: 0; top: 0; pointer-events: none; }
   #reticle i { position: absolute; left: -14px; top: -14px; width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid var(--accent); box-shadow: 0 0 0 1px rgba(3, 4, 11, 0.55), inset 0 0 0 1px rgba(3, 4, 11, 0.55); }
@@ -314,11 +323,17 @@
     </section>
 
     <section class="card surface" id="syscard" aria-label="Système" hidden>
-      <p class="site" id="sysinfo">Six mondes tournent autour de cette étoile. Choisissez-en un pour vous y rendre.</p>
+      <p class="site" id="sysinfo">Six mondes tournent autour de cette étoile. Survolez ou touchez un monde pour le découvrir avant de vous y rendre.</p>
       <div class="actions"><button id="sysback" class="btn" type="button">Retour</button></div>
     </section>
   </div>
   <div id="syslabels" hidden></div>
+  <div id="worldcard" class="card" role="group" aria-label="Fiche du monde" hidden>
+    <p class="here-tag" id="wc-here">Vous êtes ici</p>
+    <p class="planet-id"><strong id="wc-name"></strong> <span id="wc-type"></span></p>
+    <dl id="wc-facts"></dl>
+    <button id="wc-go" class="btn" type="button">S'y rendre</button>
+  </div>
   <div id="reticle" aria-hidden="true" hidden><i></i><svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="19"/></svg><p id="ret-label"><b id="ret-where"></b><span id="ret-how"></span></p></div>
   <div id="frame" hidden><p id="signature" hidden><strong id="sig-name"></strong><span id="sig-sub"></span></p></div>
   <div id="photobar" role="group" aria-label="Mode photo" hidden>
@@ -1318,6 +1333,7 @@ void main(){
     $('surface').hidden = which !== 'surface'; $('stick').hidden = which !== 'surface'; $('boost').hidden = which !== 'surface';
     if (which !== 'surface') setBoost(false);
     $('syscard').hidden = which !== 'system'; $('syslabels').hidden = which !== 'system';
+    if (which !== 'system') closeWorldCard();
   }
   let toastT = 0;
   function setBoost(on) { boost = on; $('boost').setAttribute('aria-pressed', String(on)); $('boost').textContent = ship.on ? 'Turbo' : 'Courir'; }
@@ -1456,10 +1472,11 @@ void main(){
   }
   function fPart(parent, geo, mat, sx, sy, sz, x, y, z) { const m = new THREE.Mesh(geo, mat); m.scale.set(sx, sy, sz); m.position.set(x, y, z); parent.add(m); return m; }
 
-  function makeSpecies() {
-    let a = (Math.round((state.seed[0] * 31 + state.seed[1] * 17 + state.seed[2] * 7) * 100) + PKEYS.indexOf(state.preset) * 7919) | 0;
+  // the species of a world, grown from its type, its seed and its air: the same call describes a world seen from afar
+  function makeSpecies(P, seed, atmo) {
+    let a = (Math.round((seed[0] * 31 + seed[1] * 17 + seed[2] * 7) * 100) + PKEYS.indexOf(P) * 7919) | 0;
     const R = () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
-    const P = state.preset, C = PRESETS[P].col;
+    const C = PRESETS[P].col;
     const sp = { R: R, bodyL: 0.9 + R() * 0.7, bodyR: 0.38 + R() * 0.22, legL: 0.7 + R() * 0.8, neckL: 0.45 + R() * 0.9, headR: 0.22 + R() * 0.12, horns: (R() * 3) | 0, tail: 0.3 + R() * 0.9, plates: R() < 0.45 };
     if (P === 'desert') { sp.legL *= 1.35; sp.neckL *= 1.5; }
     if (P === 'glace') { sp.bodyR *= 1.35; sp.legL *= 0.75; sp.neckL *= 0.7; }
@@ -1470,7 +1487,7 @@ void main(){
     sp.wing = new THREE.Color().setHSL(R(), 0.35, P === 'glace' ? 0.85 : 0.35 + R() * 0.3).convertSRGBToLinear();
     const nm = () => SYL[(R() * SYL.length) | 0] + SYL[(R() * SYL.length) | 0];
     sp.n1 = nm(); sp.n2 = nm(); if (sp.n2 === sp.n1) sp.n2 += 'is';
-    const air = sm(0.12, 0.4, cur.atmo);
+    const air = sm(0.12, 0.4, atmo);
     sp.grazers = Math.round(({ tellurique: 14, ocean: 9, desert: 6, glace: 7 }[P] || 0) * air);
     sp.flyers = Math.round(({ tellurique: 10, ocean: 14, desert: 4, glace: 3 }[P] || 0) * air);
     sp.orbs = P === 'lave' ? 12 : 0;
@@ -1484,6 +1501,17 @@ void main(){
     sp.pat = [(R() * 3) | 0, 5 + R() * 6, 0.45 + R() * 0.3];
     sp.col2 = sp.body.clone().multiplyScalar(0.4);
     return sp;
+  }
+  // what lives there, in the order it is listed: [key, name, what it is]
+  function faunaKinds(sp, P) {
+    const out = [];
+    if (sp.orbs) out.push({ k: 'orbs', name: sp.n1 + 's', what: 'braises vivantes' });
+    if (sp.grazers) out.push({ k: 'grazers', name: sp.n1 + 's', what: 'troupeaux' });
+    if (sp.grazers && sp.hunters) out.push({ k: 'hunters', name: sp.n4 + 's', what: 'prédateurs' });
+    if (sp.flyers) out.push({ k: 'flyers', name: sp.n2 + 's', what: 'volants' });
+    if (sp.pods) out.push({ k: 'pods', name: sp.n3 + 's', what: P === 'lave' ? 'nageurs de lave' : 'bancs marins' });
+    if (sp.giant) out.push({ k: 'giant', name: 'géant', what: 'géant des profondeurs' });
+    return out;
   }
   function buildGrazer(sp, mBody, mAcc, k) {
     const g = new THREE.Group(), B = sp.bodyR, L = sp.bodyL, H = sp.legL + B * 0.8, pred = !!sp.pred, tuck = pred ? 0.7 : 1, hump = sp.hump, legs = [], knees = [];
@@ -1595,7 +1623,7 @@ void main(){
     fauna.mats.forEach((m) => m.dispose()); fauna.mats.length = 0;
     fauna.geos.forEach((g) => g.dispose()); fauna.geos.length = 0;
     fauna.herds.length = fauna.animals.length = fauna.birds.length = fauna.orbs.length = fauna.hunters.length = fauna.pods.length = 0;
-    const sp = fauna.sp = makeSpecies(), R = sp.R, P0 = state.preset;
+    const sp = fauna.sp = makeSpecies(state.preset, state.seed, cur.atmo), R = sp.R, P0 = state.preset;
     const mBody = fMat(sp.body, null, sp.col2, sp.pat), mAcc = fMat(sp.accent), mWing = fMat(sp.wing, null, sp.wing.clone().multiplyScalar(0.45), [1, 16, 0.6]);
     fauna.mDark = fMat(new THREE.Color(0.015, 0.015, 0.02)); fauna.mFang = fMat(new THREE.Color(0.9, 0.88, 0.8));
     const nH = sp.grazers ? Math.max(1, Math.round(sp.grazers / 5)) : 0;
@@ -2090,6 +2118,7 @@ void main(){
   }
   window.addEventListener('keydown', (ev) => {
     if (ev.code === 'Escape' && photo) setPhoto(false);
+    else if (ev.code === 'Escape') closeWorldCard();
     if (mode !== 'surface' || (ev.target && ev.target.tagName === 'INPUT')) return;
     keys[ev.code] = true;
     if (ev.code.startsWith('Arrow') || ev.code === 'Space') ev.preventDefault();
@@ -2170,10 +2199,48 @@ void main(){
       sysScene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0x3a4a72, transparent: true, opacity: 0.55 })));
       const b = document.createElement('button'); b.type = 'button';
       b.appendChild(document.createElement('span')); b.appendChild(document.createElement('small'));
-      b.addEventListener('click', () => travelTo(i)); box.appendChild(b); w.btn = b;
+      // hovering (or a first tap) opens the world's card; a click on a label whose card is open starts the trip
+      b.addEventListener('click', () => { if (wcard.i === i) travelTo(i); else openWorldCard(i, true); });
+      b.addEventListener('pointerenter', (ev) => { if (ev.pointerType === 'mouse' && !wcard.pinned) openWorldCard(i, false); });
+      b.addEventListener('pointerleave', (ev) => { if (ev.pointerType === 'mouse') leaveWorldCard(); });
+      b.addEventListener('focus', () => { if (wcard.i !== i && b.matches(':focus-visible')) openWorldCard(i, false); });
+      box.appendChild(b); w.btn = b;
       fillWorld(w);
     });
   }
+  const wcard = { el: $('worldcard'), i: -1, pinned: false, t: 0, w: 248, h: 180 };
+  function openWorldCard(i, pinned) {
+    clearTimeout(wcard.t);
+    const w = worlds[i], P = PRESETS[w.preset], gasW = !!P.gas, here = i === active;
+    const kinds = gasW ? [] : faunaKinds(makeSpecies(w.preset, w.seed, w.sl.atmo), w.preset);
+    const facts = [
+      ['Climat', tempWord(w.sl.temp)],
+      gasW ? ['Sol', 'aucun, on ne s\'y pose pas'] : [P.lava ? 'Mers de lave' : 'Océans', '≈ ' + seaShare(w.sl.sea) + ' % de la surface'],
+      ['Atmosphère', atmoWord(w.sl.atmo)],
+      ['Anneaux', w.sl.rings > 0.01 ? 'oui' : 'aucun'],
+      ['Lunes', String(moons.length)],
+      ['Faune connue', kinds.length ? kinds.map((s) => s.what).join(', ') : 'aucune']
+    ];
+    const dl = $('wc-facts'); dl.textContent = '';
+    facts.forEach((f) => { const dt = document.createElement('dt'), dd = document.createElement('dd'); dt.textContent = f[0]; dd.textContent = f[1]; dl.appendChild(dt); dl.appendChild(dd); });
+    $('wc-name').textContent = w.name; $('wc-type').textContent = '· ' + P.type;
+    $('wc-here').hidden = !here; $('wc-go').textContent = here ? 'Y retourner' : 'S\'y rendre';
+    worlds.forEach((x, j) => x.btn.classList.toggle('open', j === i));
+    wcard.i = i; wcard.pinned = pinned; wcard.el.hidden = false;
+    wcard.w = wcard.el.offsetWidth; wcard.h = wcard.el.offsetHeight;
+  }
+  function closeWorldCard() {
+    clearTimeout(wcard.t);
+    if (wcard.i < 0) return;
+    worlds.forEach((x) => x.btn && x.btn.classList.remove('open'));
+    wcard.i = -1; wcard.pinned = false; wcard.el.hidden = true;
+  }
+  // leaving the label for the card must not close it: wait a moment, and stay open while it is pinned
+  function leaveWorldCard() { clearTimeout(wcard.t); if (!wcard.pinned) wcard.t = setTimeout(closeWorldCard, 280); }
+  wcard.el.addEventListener('pointerenter', () => clearTimeout(wcard.t));
+  wcard.el.addEventListener('pointerleave', (ev) => { if (ev.pointerType === 'mouse') leaveWorldCard(); });
+  $('wc-go').addEventListener('click', () => { if (wcard.i >= 0) travelTo(wcard.i); });
+  canvas.addEventListener('pointerdown', closeWorldCard);
   function enterSystem() {
     if (mode !== 'orbit') return;
     storeActive(); worlds.forEach(fillWorld);
@@ -2185,7 +2252,7 @@ void main(){
     sysAnim.p0.copy(camera.position).applyAxisAngle(Y, -w.delta).add(w.pos); sysAnim.l0.copy(w.pos);
     sysAnim.p1.set(0, D * 0.74, D * 0.67); sysAnim.l1.set(0, 0, 0);
     sysAnim.t = 0; sysAnim.dur = 3; sysAnim.ease = 'in'; sysAnim.then = null; sysAnim.on = true;
-    worlds.forEach((x, i) => x.btn.classList.toggle('here', i === active));
+    worlds.forEach((x, i) => { x.btn.classList.toggle('here', i === active); if (i === active) x.btn.setAttribute('aria-current', 'location'); else x.btn.removeAttribute('aria-current'); });
     $('sysback').textContent = 'Retour vers ' + w.name;
     setUI('system');
   }
@@ -2219,7 +2286,13 @@ void main(){
       w.u.uTime.value = simT; w.u.uCloudRot.value = simT * 0.012;
       v3.copy(w.pos).project(sysCam);
       w.btn.style.visibility = v3.z < 1 ? 'visible' : 'hidden';
-      w.btn.style.transform = 'translate(' + ((v3.x * 0.5 + 0.5) * W + 14).toFixed(1) + 'px,' + ((-v3.y * 0.5 + 0.5) * H - 16).toFixed(1) + 'px)';
+      const lx = (v3.x * 0.5 + 0.5) * W + 14, ly = (-v3.y * 0.5 + 0.5) * H - 16;
+      w.btn.style.transform = 'translate(' + lx.toFixed(1) + 'px,' + ly.toFixed(1) + 'px)';
+      if (worlds[wcard.i] === w) {
+        // the card hangs under its label, or above it near the bottom of the screen, and never leaves the screen
+        const bh = w.btn.offsetHeight, below = ly + bh + 6, cy = below + wcard.h > H - 8 ? ly - wcard.h - 6 : below;
+        wcard.el.style.transform = 'translate(' + clamp(lx, 8, Math.max(8, W - wcard.w - 8)).toFixed(1) + 'px,' + clamp(cy, 8, Math.max(8, H - wcard.h - 8)).toFixed(1) + 'px)';
+      }
     });
     renderer.render(sysScene, sysCam);
   }
