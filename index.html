@@ -19,6 +19,7 @@
     --accent: #7cc4ff;
     --accent-fg: #04121f;
     --track: #2a3349;
+    --warn: #ffb59a;
     --font-display: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
     --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   }
@@ -123,7 +124,7 @@
   .ico .solid { fill: currentColor; }
   #b-sound[aria-pressed="true"] .snd-off, #b-sound[aria-pressed="true"] .snd-label, #b-sound[aria-pressed="false"] .snd-on { display: none; }
   #b-sound[aria-pressed="true"] { padding-inline: 8px; }
-  .tools input[type="range"] { flex: none; width: 64px; }
+  .tools input[type="range"] { flex: none; width: 54px; }
   .cue { pointer-events: auto; flex: none; margin-bottom: auto; display: inline-flex; align-items: center; gap: 8px; font: inherit; font-size: 13px; font-weight: 500; color: var(--fg); background: var(--panel); border: 1px solid var(--accent); border-radius: 999px; padding: 7px 14px 7px 11px; cursor: pointer; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); animation: cue-in 0.35s ease both; }
   .cue:hover { background: var(--accent); color: var(--accent-fg); }
   .cue svg { color: var(--accent); } .cue:hover svg { color: inherit; }
@@ -131,7 +132,10 @@
   @media (prefers-reduced-motion: reduce) { .cue { animation: none; } }
   .tool:hover { border-color: var(--accent); }
   .tool[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600; }
-  .toast { margin: 0; font-size: 12.5px; color: var(--accent); overflow-wrap: anywhere; }
+  .toast { margin: 0; font-size: 12.5px; color: var(--warn); overflow-wrap: anywhere; }
+  /* the share button confirms on itself; it keeps one width so the row does not move */
+  #b-share { min-width: 94px; justify-content: center; }
+  #b-share.done { border-color: var(--accent); color: var(--accent); padding-inline: 5px; gap: 5px; }
   .code input { font: inherit; font-size: 12.5px; background: transparent; color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; width: 100%; min-width: 0; }
   .btn:disabled { opacity: 0.5; cursor: not-allowed; }
   #syslabels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
@@ -269,7 +273,7 @@
         <button id="b-sound" class="tool" type="button" aria-pressed="false" aria-label="Son" title="Activer le son"><svg class="ico" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path class="solid" d="M2 6h2.6L8 3.2v9.6L4.6 10H2z"/><path class="snd-off" d="M10.8 6l3.4 4M14.2 6l-3.4 4"/><path class="snd-on" d="M10.6 5.6a3.4 3.4 0 0 1 0 4.8M12.5 3.7a6.1 6.1 0 0 1 0 8.6"/></svg><span class="snd-label">Son</span></button>
         <input id="vol" type="range" min="0" max="1" step="0.05" value="0.9" aria-label="Volume du son" title="Volume" hidden>
         <button id="b-photo" class="tool" type="button">Photo</button>
-        <button id="b-share" class="tool" type="button">Partager</button>
+        <button id="b-share" class="tool" type="button"><svg class="ico" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" hidden><path d="M3 8.5l3.2 3.2L13 4.8"/></svg><span id="share-label" aria-live="polite">Partager</span></button>
       </div>
       <p class="toast" id="toast" role="status" hidden></p>
       </div>
@@ -2390,7 +2394,8 @@ void main(){
     return c + b36(letters.length, 1) + letters + m[2];
   }
   function applyCode(raw) {
-    const code = String(raw).trim().toLowerCase().replace(/^#/, '');
+    // accepts a bare code, "#code", or a whole shared link ending in "#code"
+    const code = String(raw).trim().split('#').pop().toLowerCase();
     if (mode !== 'orbit' || !/^w[0-9a-z]{28,40}$/.test(code)) return false;
     let o = 1; const take = (n) => { const v = code.substr(o, n); o += n; return v; }, num = (n) => parseInt(take(n), 36);
     const pk = PKEYS[num(1)]; if (!pk) return false;
@@ -2403,15 +2408,34 @@ void main(){
     setTargetFromPreset(pk, sl); tgt.seed.fromArray(seed); syncUI(); storeActive();
     return true;
   }
-  $('b-share').addEventListener('click', () => {
+  const shareBtn = $('b-share'), shareLabel = $('share-label');
+  let shareT = 0;
+  // the button itself says it worked, for two seconds; the message line under it is kept for failures
+  function shareDone(text) {
+    $('toast').hidden = true;
+    shareBtn.classList.add('done'); shareBtn.firstElementChild.removeAttribute('hidden'); shareLabel.textContent = text;
+    clearTimeout(shareT);
+    shareT = setTimeout(() => { shareBtn.classList.remove('done'); shareBtn.firstElementChild.setAttribute('hidden', ''); shareLabel.textContent = 'Partager'; }, 2000);
+  }
+  shareBtn.addEventListener('click', () => {
     storeActive();
     const code = encodeWorld(); $('code').value = code;
     try { location.hash = code; } catch (e) { /* the code field still works */ }
-    const ok = () => toast('Code copié. Le lien de partage de cette page ouvre maintenant ' + state.name + '.');
-    const ko = () => { $('code').focus(); $('code').select(); toast('Le code est dans le champ « Code d\'une planète » : copiez-le depuis là.'); };
-    try { navigator.clipboard.writeText(code).then(ok, ko); } catch (e) { ko(); }
+    // a link only means something once the page is online; opened from a file, the code is what can be passed on
+    const online = /^https?:$/.test(location.protocol), text = online ? location.href : code;
+    const ko = () => {
+      setFold('controls', false, false); measureView();
+      $('code').focus(); $('code').select();
+      toast('La copie n\'a pas marché. Le code est dans le champ « Code d\'une planète » : copiez-le depuis là.');
+    };
+    const copy = () => { try { navigator.clipboard.writeText(text).then(() => shareDone(online ? 'Lien copié' : 'Code copié'), ko); } catch (e) { ko(); } };
+    const phone = !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    if (online && phone && navigator.share) {
+      navigator.share({ title: state.name + ' · Atelier de planètes', text: state.name + ', ' + PRESETS[state.preset].type + ' façonné dans l\'Atelier de planètes', url: text })
+        .then(() => shareDone('Partagé'), (err) => { if (!err || err.name !== 'AbortError') copy(); });
+    } else copy();
   });
-  const loadCode = () => { const v = $('code').value; if (!v.trim()) return; toast(applyCode(v) ? 'Planète chargée : ' + state.name + '.' : 'Ce code n\'est pas reconnu.'); };
+  const loadCode = () => { const v = $('code').value; if (!v.trim()) return; if (applyCode(v)) $('toast').hidden = true; else toast('Ce code n\'est pas reconnu.'); };
   $('code').addEventListener('change', loadCode);
   $('code').addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); loadCode(); } });
   window.addEventListener('hashchange', () => { applyCode(location.hash); });
