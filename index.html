@@ -195,6 +195,22 @@
   #i-head { min-width: 7ch; } #i-alt { min-width: 6ch; } #i-speed { min-width: 9ch; } #i-time { min-width: 7ch; }
   .site strong { font-family: var(--font-display); font-weight: 600; }
   .how { color: var(--muted); font-size: 12.5px; flex: 1 1 150px; min-width: 0; }
+  /* Fauna: one chip per species, dashed and grey until it has been seen */
+  .fauna { display: flex; flex-direction: column; gap: 6px; }
+  .fauna-head { margin: 0; display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12.5px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .fauna ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .sp { display: flex; align-items: center; gap: 7px; padding: 4px 11px 4px 8px; border: 1px solid var(--line); border-radius: 999px; font-size: 12px; line-height: 1.2; }
+  .sp svg { flex: none; color: var(--c); fill: currentColor; }
+  .sp svg .ln { fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; }
+  .sp b { display: block; font-weight: 600; }
+  .sp small { display: block; color: var(--muted); font-size: 10.5px; }
+  .sp.unseen { border-style: dashed; }
+  .sp.unseen svg { color: var(--track); }
+  .sp.unseen b { color: var(--muted); font-weight: 500; }
+  .sp.new { animation: sp-new 1.6s ease; }
+  @keyframes sp-new { from { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124, 196, 255, 0.4); } }
+  .notice { margin: 0; max-width: 100%; padding: 7px 14px; background: var(--panel); border: 1px solid var(--accent); border-radius: 999px; font-size: 13px; font-weight: 500; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+  @media (prefers-reduced-motion: reduce) { .sp.new { animation: none; } }
   #fade { position: absolute; inset: 0; background: #dfe9ff; opacity: 0; pointer-events: none; transition: opacity 0.7s ease; }
   #fade.on { opacity: 1; }
   #stick {
@@ -228,6 +244,7 @@
     .lbl output { font-size: 11.5px; }
     .stats { padding-top: 8px; }
     .surface, .instruments { width: calc(100% - 132px); }
+    .notice { font-size: 12.5px; }
     #boost { right: calc(max(20px, env(safe-area-inset-right, 0px)) + 20px); bottom: 140px; }
     .inst { padding: 4px 9px; min-height: 40px; }
   }
@@ -288,6 +305,7 @@
     </section>
 
     <section class="dock" id="surface" aria-label="À la surface" hidden>
+      <p class="notice" id="notice" role="status" hidden></p>
       <div class="instruments" role="group" aria-label="Instruments">
         <div class="inst">
           <svg viewBox="0 0 32 32" width="32" height="32" aria-hidden="true">
@@ -311,7 +329,7 @@
       <div class="card surface" data-fold="surface">
       <button class="fold bar" type="button" aria-expanded="true" aria-controls="surface-body"><span>À la surface</span><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <div class="card-body" id="surface-body">
-      <p class="hint" id="fauna" style="display:block"></p>
+      <div class="fauna" id="fauna"></div>
       <div class="field" data-k="speed"><div class="lbl"><label for="speed2">Vitesse du temps</label><output id="v-speed2" for="speed2"></output></div><input id="speed2" title="Double-cliquez pour revenir à la vitesse normale" type="range" min="0" max="8" step="0.1" value="1"></div>
       <div class="actions">
         <div class="buttons"><button id="takeoff" class="btn" type="button">Redécoller</button><button id="fly" class="btn ghost" type="button">Piloter le vaisseau</button></div>
@@ -1331,7 +1349,7 @@ void main(){
   function setUI(which) {
     $('controls').hidden = which !== 'orbit'; $('hint').hidden = which !== 'orbit';
     $('surface').hidden = which !== 'surface'; $('stick').hidden = which !== 'surface'; $('boost').hidden = which !== 'surface';
-    if (which !== 'surface') setBoost(false);
+    if (which !== 'surface') { setBoost(false); $('notice').hidden = true; }
     $('syscard').hidden = which !== 'system'; $('syslabels').hidden = which !== 'system';
     if (which !== 'system') closeWorldCard();
   }
@@ -1671,14 +1689,71 @@ void main(){
       fauna.pods.push(pd);
     }
     if (sp.giant) fauna.pods.push({ x: 0, z: 0, h: 0, k: 9, active: false, retry: 0, big: true, members: [{ g: buildSwimmer(mSea, 1, true), ox: 0, oz: 0, ph: 0, jt: 0, jump: 0 }] });
-    const list = [
-      sp.orbs ? sp.n1 + 's, braises vivantes au-dessus du sol' : '',
-      fauna.animals.length ? 'troupeaux de ' + sp.n1 + 's' + (fauna.hunters.length ? ', chassés par des ' + sp.n4 + 's' : '') : '',
-      sp.flyers ? 'vols de ' + sp.n2 + 's' : '',
-      sp.pods ? sp.n3 + 's qui bondissent ' + (P0 === 'lave' ? 'hors de la lave' : 'en mer') : '',
-      sp.giant ? 'un géant des profondeurs au large' : ''
-    ].filter(Boolean);
-    $('fauna').textContent = list.length ? 'Faune : ' + list.join(' ; ') + '.' : 'Aucune vie détectée ici.';
+    showFauna(sp, P0);
+  }
+
+  /* ---------- the species list: a chip per species, filled in when you first see it ---------- */
+  const FAUNA_ART = {
+    grazers: '<ellipse cx="11" cy="9.5" rx="6.5" ry="3.3"/><rect x="5.6" y="10" width="1.7" height="8" rx="0.8"/><rect x="8.3" y="10" width="1.7" height="8" rx="0.8"/><rect x="12.8" y="10" width="1.7" height="8" rx="0.8"/><rect x="15.4" y="10" width="1.7" height="8" rx="0.8"/><path d="M14.8 8.4l3.3-5.2 1.9 1.1-2.7 5.9z"/><ellipse cx="19.9" cy="3.5" rx="2.4" ry="1.4" transform="rotate(18 19.9 3.5)"/><path class="ln" d="M4.7 8.3l-2.2 2.7"/>',
+    hunters: '<ellipse cx="11" cy="10.5" rx="7.5" ry="2.7"/><rect x="5" y="11" width="1.7" height="6" rx="0.8"/><rect x="7.6" y="11" width="1.7" height="6" rx="0.8"/><rect x="13.6" y="11" width="1.7" height="6" rx="0.8"/><rect x="16.2" y="11" width="1.7" height="6" rx="0.8"/><ellipse cx="20" cy="9.6" rx="3" ry="1.7"/><path d="M18.4 8.3l0.5-2.6 1.4 2.2z"/><path class="ln" d="M3.8 9.6c-2-0.6-2.6-2.6-1.6-4.6"/>',
+    flyers: '<path d="M1.5 7.5c3.6-3.2 7-3 9.4 0.6L12 9.7l1.1-1.6c2.4-3.6 5.8-3.8 9.4-0.6-3.2-0.6-5.6 0.4-7.4 2.8L12 14.5 8.9 10.3C7.1 7.9 4.7 6.9 1.5 7.5z"/>',
+    pods: '<path d="M1.5 10c3.2-4.4 8.2-5.4 13.2-2.6l5.3-3.6-1.3 6.2 1.3 6.2-5.3-3.6C9.7 15.4 4.7 14.4 1.5 10z"/>',
+    giant: '<path d="M1 14c2.8-7 9-9.6 15.2-6.8l2.6-3.2 0.4 4.8c2 1.2 3.2 3 3.8 5.2z"/><path class="ln" d="M1 17h22"/>',
+    orbs: '<circle cx="12" cy="7" r="4.6"/><path class="ln" d="M9.6 11.2l-1 6M12 11.8v6.2M14.4 11.2l1 6"/>'
+  };
+  const EMBER = new THREE.Color('#ff9a3c').convertSRGBToLinear();
+  // a colour bright enough to read on the dark card, from the (linear) colour the creature is drawn with
+  const chipColor = (lin) => { const c = lin.clone().convertLinearToSRGB(), h = { h: 0, s: 0, l: 0 }; c.getHSL(h); c.setHSL(h.h, Math.min(h.s, 0.75), clamp(h.l, 0.5, 0.8)); return '#' + c.getHexString(); };
+  const seenByWorld = {};
+  function showFauna(sp, P0) {
+    const present = { orbs: fauna.orbs.length, grazers: fauna.animals.length, hunters: fauna.hunters.length, flyers: fauna.birds.length, pods: fauna.pods.some((pd) => !pd.big), giant: fauna.pods.some((pd) => pd.big) };
+    const cols = { orbs: EMBER, grazers: sp.body, hunters: sp.accent.clone().lerp(sp.hunt, 0.45), flyers: sp.wing, pods: P0 === 'lave' ? EMBER : sp.sea, giant: sp.sea };
+    const key = state.preset + '|' + state.seed.join(',');
+    fauna.seen = seenByWorld[key] || (seenByWorld[key] = {});
+    fauna.kinds = faunaKinds(sp, P0).filter((s) => present[s.k]);
+    const box = $('fauna'); box.textContent = ''; $('notice').hidden = true;
+    if (!fauna.kinds.length) { const e = document.createElement('p'); e.className = 'fauna-head'; e.textContent = 'Aucune vie détectée ici.'; box.appendChild(e); return; }
+    const head = document.createElement('p'), ul = document.createElement('ul');
+    head.className = 'fauna-head'; head.innerHTML = '<span>Faune</span><span id="fauna-count"></span>'; box.appendChild(head); box.appendChild(ul);
+    fauna.kinds.forEach((s) => {
+      const li = document.createElement('li'), b = document.createElement('b'), sm2 = document.createElement('small'), tx = document.createElement('span');
+      li.className = 'sp'; li.style.setProperty('--c', chipColor(cols[s.k]));
+      li.innerHTML = '<svg viewBox="0 0 24 20" width="24" height="20" aria-hidden="true">' + FAUNA_ART[s.k] + '</svg>';
+      b.textContent = s.what.charAt(0).toUpperCase() + s.what.slice(1); tx.appendChild(b); tx.appendChild(sm2); li.appendChild(tx); ul.appendChild(li);
+      s.li = li; s.small = sm2; markSpecies(s, !!fauna.seen[s.k]);
+    });
+    countFauna();
+  }
+  function markSpecies(s, seen) {
+    s.li.classList.toggle('unseen', !seen);
+    s.small.textContent = seen ? (s.k === 'giant' ? 'au large' : s.name) : 'pas encore observé';
+  }
+  function countFauna() { const n = fauna.kinds.filter((s) => fauna.seen[s.k]).length; $('fauna-count').textContent = n + ' / ' + fauna.kinds.length + (n > 1 ? ' observées' : ' observée'); }
+  let noticeT = 0;
+  function notify(msg) { const el = $('notice'); el.textContent = msg; el.hidden = false; clearTimeout(noticeT); noticeT = setTimeout(() => { el.hidden = true; }, 5000); }
+  // is something of this kind in front of you, close enough to be made out? (the terrain in between is ignored)
+  function spotFauna() {
+    if (!fauna.kinds || !fauna.kinds.length) return;
+    const o = su.uRo.value, F = su.uFwd.value;
+    const sees = (x, y, z, range) => { const dx = x - o.x, dy = y - o.y, dz = z - o.z, d = Math.hypot(dx, dy, dz); return d < range && (d < 6 || (dx * F.x + dy * F.y + dz * F.z) / d > 0.74); };
+    const at = (g, range) => g.visible && sees(g.position.x, g.position.y, g.position.z, range);
+    const tests = {
+      orbs: () => fauna.orbs.some((q) => at(q.g, 70)),
+      grazers: () => fauna.animals.some((a) => sees(a.x, a.y + 1, a.z, 85)),
+      hunters: () => fauna.hunters.some((h) => sees(h.x, h.y + 1, h.z, 85)),
+      flyers: () => fauna.birds.some((b) => at(b.g, 110)),
+      pods: () => fauna.pods.some((pd) => !pd.big && pd.members.some((m) => at(m.g, 110))),
+      giant: () => fauna.pods.some((pd) => pd.big && at(pd.members[0].g, 150))
+    };
+    const fresh = fauna.kinds.filter((s) => !fauna.seen[s.k] && tests[s.k]());
+    if (!fresh.length) return;
+    fresh.forEach((s) => {
+      fauna.seen[s.k] = true; markSpecies(s, true);
+      s.li.classList.remove('new'); void s.li.offsetWidth; s.li.classList.add('new');
+    });
+    countFauna();
+    const label = (s) => (s.k === 'giant' ? 'un géant des profondeurs' : s.name + ' (' + s.what + ')');
+    notify(fresh.length > 1 ? 'Nouvelles espèces observées : ' + fresh.map((s) => (s.k === 'giant' ? 'un géant' : s.name)).join(', ') : 'Nouvelle espèce observée : ' + label(fresh[0]));
   }
   function faunaShift(x, z) {
     fauna.herds.forEach((h) => { h.x -= x; h.z -= z; });
@@ -1978,6 +2053,7 @@ void main(){
         setText(inst.time, clockText(localHour(site.s, pu.uSun.value)));
         setText(inst.day, day ? 'Jour' : 'Nuit');
         if (inst.sun.hasAttribute('hidden') === day) { inst.sun.toggleAttribute('hidden', !day); inst.moon.toggleAttribute('hidden', day); }
+        spotFauna();
       }
     }
   }
