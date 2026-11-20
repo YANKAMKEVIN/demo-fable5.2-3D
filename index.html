@@ -111,8 +111,20 @@
   .check input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
   .stats { margin: 0; padding-top: 10px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 
-  .tools { display: flex; flex-wrap: wrap; gap: 6px; }
-  .tool { font: inherit; font-size: 12.5px; font-weight: 500; background: transparent; color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; cursor: pointer; }
+  .tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .tool { display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 12.5px; font-weight: 500; background: transparent; color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; cursor: pointer; }
+  .tool svg { flex: none; }
+  /* Sound: a crossed speaker while muted; once on, the label makes room for the volume slider. */
+  .ico path { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .ico .solid { fill: currentColor; }
+  #b-sound[aria-pressed="true"] .snd-off, #b-sound[aria-pressed="true"] .snd-label, #b-sound[aria-pressed="false"] .snd-on { display: none; }
+  #b-sound[aria-pressed="true"] { padding-inline: 8px; }
+  .tools input[type="range"] { flex: none; width: 64px; }
+  .cue { pointer-events: auto; flex: none; margin-bottom: auto; display: inline-flex; align-items: center; gap: 8px; font: inherit; font-size: 13px; font-weight: 500; color: var(--fg); background: var(--panel); border: 1px solid var(--accent); border-radius: 999px; padding: 7px 14px 7px 11px; cursor: pointer; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); animation: cue-in 0.35s ease both; }
+  .cue:hover { background: var(--accent); color: var(--accent-fg); }
+  .cue svg { color: var(--accent); } .cue:hover svg { color: inherit; }
+  @keyframes cue-in { from { opacity: 0; transform: translateY(-6px); } }
+  @media (prefers-reduced-motion: reduce) { .cue { animation: none; } }
   .tool:hover { border-color: var(--accent); }
   .tool[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600; }
   .toast { margin: 0; font-size: 12.5px; color: var(--accent); overflow-wrap: anywhere; }
@@ -200,13 +212,15 @@
       <p class="hint" id="hint">Continents, climat, nuages, anneaux et éclipses sont calculés pixel par pixel, en direct. Glissez pour tourner, zoomez pour approcher, double-cliquez sur un lieu pour vous y poser.</p>
       <div class="tools">
         <button id="b-system" class="tool" type="button">Système</button>
-        <button id="b-sound" class="tool" type="button" aria-pressed="false">Son</button>
+        <button id="b-sound" class="tool" type="button" aria-pressed="false" aria-label="Son" title="Activer le son"><svg class="ico" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path class="solid" d="M2 6h2.6L8 3.2v9.6L4.6 10H2z"/><path class="snd-off" d="M10.8 6l3.4 4M14.2 6l-3.4 4"/><path class="snd-on" d="M10.6 5.6a3.4 3.4 0 0 1 0 4.8M12.5 3.7a6.1 6.1 0 0 1 0 8.6"/></svg><span class="snd-label">Son</span></button>
+        <input id="vol" type="range" min="0" max="1" step="0.05" value="0.9" aria-label="Volume du son" title="Volume" hidden>
         <button id="b-photo" class="tool" type="button">Photo</button>
         <button id="b-share" class="tool" type="button">Partager</button>
       </div>
       <p class="toast" id="toast" role="status" hidden></p>
       </div>
     </header>
+    <button id="soundcue" class="cue" type="button" hidden><svg class="ico" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path class="solid" d="M2 6h2.6L8 3.2v9.6L4.6 10H2z"/><path d="M10.6 5.6a3.4 3.4 0 0 1 0 4.8M12.5 3.7a6.1 6.1 0 0 1 0 8.6"/></svg>Activer le son : vent, ressac, moteur</button>
 
     <section class="card controls" id="controls" aria-label="Réglages de la planète" data-fold="controls">
       <button class="fold bar" type="button" aria-expanded="true" aria-controls="controls-body"><span>Réglages</span><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -2237,12 +2251,30 @@ void main(){
     set(audio.pad.gain, pad, 1.0); set(audio.wind.g.gain, wind); set(audio.surf.g.gain, surf); set(audio.swell.gain, surf * 0.6);
     set(audio.rumble.g.gain, rum); set(audio.eg.gain, eng); set(audio.jet.g.gain, eng * 1.4);
   }
-  $('b-sound').addEventListener('click', () => {
-    if (!audio.ctx && !audioInit()) { toast('Le son n\'est pas disponible dans ce navigateur.'); return; }
-    audio.on = !audio.on; audio.ctx.resume();
-    audio.master.gain.setTargetAtTime(audio.on ? 0.9 : 0, audio.ctx.currentTime, 0.2);
-    $('b-sound').setAttribute('aria-pressed', String(audio.on));
+  const soundBtn = $('b-sound'), volEl = $('vol'), soundCue = $('soundcue');
+  let cueT = 0;
+  audio.vol = (function () { const v = parseFloat(store.get('vol')); return v >= 0 && v <= 1 ? v : 0.9; })();
+  volEl.value = audio.vol;
+  const hideCue = () => { clearTimeout(cueT); soundCue.hidden = true; };
+  function setSound(on) {
+    hideCue();
+    if (on && !audio.ctx && !audioInit()) { toast('Le son n\'est pas disponible dans ce navigateur.'); return; }
+    audio.on = on;
+    if (audio.ctx) { audio.ctx.resume(); audio.master.gain.setTargetAtTime(on ? audio.vol : 0, audio.ctx.currentTime, 0.2); }
+    soundBtn.setAttribute('aria-pressed', String(on)); soundBtn.title = on ? 'Couper le son' : 'Activer le son';
+    volEl.hidden = !on;
+  }
+  soundBtn.addEventListener('click', () => setSound(!audio.on));
+  soundCue.addEventListener('click', () => setSound(true));
+  volEl.addEventListener('input', () => {
+    audio.vol = parseFloat(volEl.value); store.set('vol', String(audio.vol));
+    if (audio.on && audio.ctx) audio.master.gain.setTargetAtTime(audio.vol, audio.ctx.currentTime, 0.05);
   });
+  // the whole soundscape is off until asked for: offer it once, at the first gesture on the scene
+  canvas.addEventListener('pointerdown', () => {
+    if (audio.on || photo) return;
+    soundCue.hidden = false; cueT = setTimeout(hideCue, 9000);
+  }, { once: true });
 
   function afterStart() {
     storeActive(); buildSystem();
