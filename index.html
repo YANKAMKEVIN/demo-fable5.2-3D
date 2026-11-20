@@ -5,6 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <style>body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Atelier de planètes</title>
+<meta name="description" content="Six planètes générées par le code, à façonner depuis l'orbite puis à explorer au sol, à pied ou en vaisseau. Tout est calculé en direct dans le navigateur.">
+<meta name="theme-color" content="#03040b">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2303040b'/%3E%3Cg transform='rotate(-20 32 32)'%3E%3Cellipse cx='32' cy='32' rx='27' ry='9' fill='none' stroke='%23cbbfa6' stroke-width='4'/%3E%3C/g%3E%3Ccircle cx='32' cy='32' r='15' fill='%231f77ad'/%3E%3Cpath d='M22 27c4-3 8-2 10 1s6 3 9 0c1 4-1 9-5 11-5 1-11-1-13-5z' fill='%232f8a4a'/%3E%3Cg transform='rotate(-20 32 32)'%3E%3Cpath d='M5 32a27 9 0 0 0 54 0' fill='none' stroke='%23cbbfa6' stroke-width='4'/%3E%3C/g%3E%3C/svg%3E">
+<!-- Link preview. The image must be an absolute address: this one assumes GitHub Pages on the main branch (see the README). -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="Atelier de planètes">
+<meta property="og:description" content="Six planètes générées par le code, à façonner depuis l'orbite puis à explorer au sol. Aucune texture, aucun modèle importé.">
+<meta property="og:image" content="https://yankamkevin.github.io/demo-fable5.2-3D/docs/01-orbite.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="800">
+<meta property="og:image:alt" content="Une planète tellurique vue depuis l'orbite, avec ses anneaux">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap">
 <style>
@@ -1260,6 +1272,7 @@ void main(){
     setSpeed(state.speed); $('auto').checked = state.auto;
     document.querySelectorAll('.presets button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.preset === state.preset)));
     $('pname').textContent = state.name; $('ptype').textContent = '· ' + PRESETS[state.preset].type;
+    document.title = state.name + ' · Atelier de planètes';
     const gasW = !!PRESETS[state.preset].gas; $('land').disabled = gasW; $('land').textContent = gasW ? 'Pas de sol' : 'Se poser';
   }
   for (const k of SLIDERS) $(k).addEventListener('input', (e) => { tgt[k] = parseFloat(e.target.value); showValue(k, tgt[k]); });
