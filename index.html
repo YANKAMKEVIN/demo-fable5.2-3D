@@ -244,6 +244,22 @@
   #boost[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
   @media (hover: hover) and (pointer: fine) { #stick, #boost { display: none; } }
 
+  /* Opening: the title alone on the night sky while the scene compiles, then the planet fades in and the panels slide into place. */
+  #intro { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; text-align: center; background: var(--bg); pointer-events: none; opacity: 0; visibility: hidden; transition: opacity 1.1s ease, visibility 0s linear 1.1s; }
+  #intro p { margin: 0; }
+  .intro-title { font-family: var(--font-display); font-weight: 700; font-size: clamp(28px, 6vw, 46px); line-height: 1.1; letter-spacing: -0.01em; text-wrap: balance; }
+  .intro-sub { color: var(--muted); font-size: 14px; animation: intro-pulse 1.8s ease-in-out infinite; }
+  @keyframes intro-pulse { 50% { opacity: 0.45; } }
+  .booting #intro { opacity: 1; visibility: visible; transition: none; }
+  .booting .hud > * { opacity: 0; transform: translateY(12px); }
+  .revealing .hud > * { transition: opacity 0.7s ease 0.5s, transform 0.7s ease 0.5s; }
+  @media (prefers-reduced-motion: reduce) {
+    #intro { transition-duration: 0.2s, 0s; transition-delay: 0s, 0.2s; }
+    .intro-sub { animation: none; }
+    .booting .hud > * { transform: none; }
+    .revealing .hud > * { transition: opacity 0.2s ease; }
+  }
+
   #fallback { position: absolute; inset: 0; margin: auto; height: fit-content; width: min(420px, calc(100% - 32px)); text-align: center; }
 
   @media (max-width: 560px) {
@@ -265,7 +281,8 @@
   }
 </style>
 
-<main class="stage">
+<noscript><style>#intro { display: none !important; } .booting .hud > * { opacity: 1 !important; transform: none !important; }</style></noscript>
+<main class="stage booting">
   <canvas id="scene" tabindex="0" aria-label="Scène 3D : une planète générée par le code, avec nuages, anneaux, deux lunes et leurs éclipses. Glissez pour tourner, molette ou pincement pour zoomer, flèches du clavier pour tourner."></canvas>
 
   <div class="hud">
@@ -391,6 +408,7 @@
     <div class="actions"><button id="help-close" class="btn ghost" type="button">Fermer</button></div>
   </section>
   <div id="fade"></div>
+  <div id="intro" aria-hidden="true"><p class="intro-title">Atelier de planètes</p><p class="intro-sub">Allumage du soleil…</p></div>
 
   <p id="fallback" class="card" hidden>La 3D n'a pas pu démarrer : ce navigateur ne donne pas accès à WebGL. Essayez dans un navigateur récent avec l'accélération matérielle activée.</p>
 </main>
@@ -401,7 +419,7 @@
   'use strict';
   const canvas = document.getElementById('scene');
   const $ = (id) => document.getElementById(id);
-  function fail() { $('fallback').hidden = false; $('stats').textContent = 'Scène indisponible.'; }
+  function fail() { $('fallback').hidden = false; $('stats').textContent = 'Scène indisponible.'; canvas.parentElement.classList.remove('booting'); }
   if (!window.THREE) { fail(); return; }
   let renderer;
   try { renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true }); } catch (e) { fail(); return; }
@@ -2651,7 +2669,7 @@ void main(){
      Frame loop
      ===================================================================== */
   const qInv = new THREE.Quaternion(), v3 = new THREE.Vector3();
-  let last = performance.now(), simT = 40, clock = 0, frames = 0, statT = last, slow = 0, fast = 0;
+  let last = performance.now(), simT = 40, clock = 0, frames = 0, statT = last, slow = 0, fast = 0, boot = 0;
   const adapt = !window.__noAdapt;
 
   function frame(now) {
@@ -2710,6 +2728,11 @@ void main(){
     updateReticle(now);
     audioFrame();
 
+    // the first images are on screen: lift the title screen
+    if (boot < 2 && ++boot === 2) {
+      stage.classList.add('revealing'); stage.classList.remove('booting');
+      setTimeout(() => stage.classList.remove('revealing'), 1700);
+    }
     frames++;
     if (now - statT > 1000) {
       const fps = Math.round(frames * 1000 / (now - statT));
