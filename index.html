@@ -90,6 +90,10 @@
   .sliders { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
   .field { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
   .field label { font-weight: 500; font-size: 12.5px; color: var(--muted); }
+  /* each slider says what it is set to, in words where a number would mean little */
+  .lbl { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; -webkit-user-select: none; user-select: none; }
+  .lbl label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lbl output { flex: none; font-size: 12px; font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums; }
   input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 22px; margin: 0; background: transparent; cursor: pointer; }
   input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: var(--track); }
   input[type="range"]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--track); }
@@ -188,8 +192,9 @@
     .presets { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
     .presets::-webkit-scrollbar { display: none; }
     .presets button { flex: none; }
-    .sliders { grid-template-columns: 1fr 1fr 1fr; gap: 6px 12px; }
+    .sliders { gap: 6px 14px; }
     .field label { font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .lbl output { font-size: 11.5px; }
     .stats { padding-top: 8px; }
     .surface, .instruments { width: calc(100% - 132px); }
     .inst { padding: 4px 9px; min-height: 40px; }
@@ -234,12 +239,12 @@
         <button type="button" data-preset="gaz" aria-pressed="false">Gazeuse</button>
       </div>
       <div class="sliders">
-        <div class="field"><label for="sea">Niveau des mers</label><input id="sea" type="range" min="0.3" max="0.72" step="0.005" value="0.5"></div>
-        <div class="field"><label for="temp">Température</label><input id="temp" type="range" min="-1" max="1" step="0.02" value="0.1"></div>
-        <div class="field"><label for="clouds">Nuages</label><input id="clouds" type="range" min="0" max="1" step="0.01" value="0.5"></div>
-        <div class="field"><label for="atmo">Atmosphère</label><input id="atmo" type="range" min="0" max="1.6" step="0.02" value="1"></div>
-        <div class="field"><label for="rings">Anneaux</label><input id="rings" type="range" min="0" max="1" step="0.01" value="0.75"></div>
-        <div class="field"><label for="speed">Vitesse du temps</label><input id="speed" type="range" min="0" max="8" step="0.1" value="1"></div>
+        <div class="field" data-k="sea"><div class="lbl"><label for="sea">Niveau des mers</label><output id="v-sea" for="sea"></output></div><input id="sea" title="Double-cliquez pour revenir à la valeur du type de monde" type="range" min="0.3" max="0.72" step="0.005" value="0.5"></div>
+        <div class="field" data-k="temp"><div class="lbl"><label for="temp">Température</label><output id="v-temp" for="temp"></output></div><input id="temp" title="Double-cliquez pour revenir à la valeur du type de monde" type="range" min="-1" max="1" step="0.02" value="0.1"></div>
+        <div class="field" data-k="clouds"><div class="lbl"><label for="clouds">Nuages</label><output id="v-clouds" for="clouds"></output></div><input id="clouds" title="Double-cliquez pour revenir à la valeur du type de monde" type="range" min="0" max="1" step="0.01" value="0.5"></div>
+        <div class="field" data-k="atmo"><div class="lbl"><label for="atmo">Atmosphère</label><output id="v-atmo" for="atmo"></output></div><input id="atmo" title="Double-cliquez pour revenir à la valeur du type de monde" type="range" min="0" max="1.6" step="0.02" value="1"></div>
+        <div class="field" data-k="rings"><div class="lbl"><label for="rings">Anneaux</label><output id="v-rings" for="rings"></output></div><input id="rings" title="Double-cliquez pour revenir à la valeur du type de monde" type="range" min="0" max="1" step="0.01" value="0.75"></div>
+        <div class="field" data-k="speed"><div class="lbl"><label for="speed">Vitesse du temps</label><output id="v-speed" for="speed"></output></div><input id="speed" title="Double-cliquez pour revenir à la vitesse normale" type="range" min="0" max="8" step="0.1" value="1"></div>
       </div>
       <div class="field code"><label for="code">Code d'une planète</label><input id="code" type="text" placeholder="Collez un code pour charger sa planète" autocomplete="off" spellcheck="false"></div>
       <div class="actions">
@@ -275,7 +280,7 @@
       <button class="fold bar" type="button" aria-expanded="true" aria-controls="surface-body"><span>À la surface</span><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <div class="card-body" id="surface-body">
       <p class="hint" id="fauna" style="display:block"></p>
-      <div class="field"><label for="speed2">Vitesse du temps</label><input id="speed2" type="range" min="0" max="8" step="0.1" value="1"></div>
+      <div class="field" data-k="speed"><div class="lbl"><label for="speed2">Vitesse du temps</label><output id="v-speed2" for="speed2"></output></div><input id="speed2" title="Double-cliquez pour revenir à la vitesse normale" type="range" min="0" max="8" step="0.1" value="1"></div>
       <div class="actions">
         <div class="buttons"><button id="takeoff" class="btn" type="button">Redécoller</button><button id="fly" class="btn ghost" type="button">Piloter le vaisseau</button></div>
         <span class="how" id="how">Glissez pour regarder. Marchez avec les flèches, ZQSD ou la manette à l'écran.</span>
@@ -1119,16 +1124,43 @@ void main(){
      Controls
      ===================================================================== */
   const SLIDERS = ['sea', 'temp', 'clouds', 'atmo', 'rings'];
+  // share of the globe under the sea for sea levels 0.30, 0.33 … 0.72 (measured over eight seeds; it varies by a few points from one planet to the next)
+  const SEA_SHARE = [3, 6, 11, 17, 24, 34, 44, 54, 63, 72, 80, 87, 91, 95, 97];
+  const seaShare = (sea) => { const u = clamp((sea - 0.3) / 0.03, 0, SEA_SHARE.length - 1), i = Math.min(Math.floor(u), SEA_SHARE.length - 2); return Math.round(SEA_SHARE[i] + (SEA_SHARE[i + 1] - SEA_SHARE[i]) * (u - i)); };
+  const pct = (v) => Math.round(v * 100) + ' %';
+  const tempWord = (t) => (t < -0.6 ? 'glacial' : t < -0.2 ? 'froid' : t < 0.35 ? 'tempéré' : t < 0.7 ? 'chaud' : 'torride');
+  const atmoWord = (a) => (a < 0.05 ? 'aucune' : a < 0.5 ? 'ténue' : a < 0.85 ? 'légère' : a <= 1.15 ? 'normale' : a < 1.4 ? 'dense' : 'épaisse');
+  const speedWord = (s) => (s < 0.05 ? 'en pause' : '×' + (Math.round(s * 10) / 10).toLocaleString('fr-FR'));
+  // [short text shown beside the label, full phrase read by screen readers]
+  const VALUE_TEXT = {
+    sea: (v) => ['≈ ' + seaShare(v) + ' %', 'environ ' + seaShare(v) + ' % de mers'],
+    temp: (v) => [tempWord(v), 'climat ' + tempWord(v)],
+    clouds: (v) => (v < 0.005 ? ['aucun', 'ciel sans nuages'] : [pct(v), pct(v) + ' de couverture nuageuse']),
+    atmo: (v) => [atmoWord(v), 'atmosphère ' + atmoWord(v)],
+    rings: (v) => (v < 0.005 ? ['aucun', 'pas d\'anneaux'] : [pct(v), 'anneaux à ' + pct(v)]),
+    speed: (v) => [speedWord(v), v < 0.05 ? 'temps en pause' : 'temps ' + speedWord(v)]
+  };
+  function showValue(k, v, ids) {
+    const t = VALUE_TEXT[k](v);
+    for (const id of ids || [k]) { $('v-' + id).textContent = t[0]; $(id).setAttribute('aria-valuetext', t[1]); }
+  }
+  const setSpeed = (v) => { state.speed = v; $('speed').value = v; $('speed2').value = v; showValue('speed', v, ['speed', 'speed2']); };
   function syncUI() {
-    for (const k of SLIDERS) $(k).value = tgt[k];
-    $('speed').value = state.speed; $('speed2').value = state.speed; $('auto').checked = state.auto;
+    for (const k of SLIDERS) { $(k).value = tgt[k]; showValue(k, tgt[k]); }
+    setSpeed(state.speed); $('auto').checked = state.auto;
     document.querySelectorAll('.presets button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.preset === state.preset)));
     $('pname').textContent = state.name; $('ptype').textContent = '· ' + PRESETS[state.preset].type;
     const gasW = !!PRESETS[state.preset].gas; $('land').disabled = gasW; $('land').textContent = gasW ? 'Pas de sol' : 'Se poser';
   }
-  for (const k of SLIDERS) $(k).addEventListener('input', (e) => { tgt[k] = parseFloat(e.target.value); });
-  $('speed').addEventListener('input', (e) => { state.speed = parseFloat(e.target.value); $('speed2').value = state.speed; });
-  $('speed2').addEventListener('input', (e) => { state.speed = parseFloat(e.target.value); $('speed').value = state.speed; });
+  for (const k of SLIDERS) $(k).addEventListener('input', (e) => { tgt[k] = parseFloat(e.target.value); showValue(k, tgt[k]); });
+  $('speed').addEventListener('input', (e) => setSpeed(parseFloat(e.target.value)));
+  $('speed2').addEventListener('input', (e) => setSpeed(parseFloat(e.target.value)));
+  // a double-click on a slider brings it back to the value of the current type of world (time: back to normal speed)
+  document.querySelectorAll('.field[data-k]').forEach((f) => f.addEventListener('dblclick', (ev) => {
+    const k = f.dataset.k; ev.preventDefault();
+    if (k === 'speed') { setSpeed(1); return; }
+    tgt[k] = PRESETS[state.preset][k] || 0; $(k).value = tgt[k]; showValue(k, tgt[k]);
+  }));
   $('auto').addEventListener('change', (e) => { state.auto = e.target.checked; lastTouch = 0; });
   document.querySelectorAll('.presets button').forEach((b) => b.addEventListener('click', () => {
     state.preset = b.dataset.preset; setTargetFromPreset(state.preset); syncUI();
