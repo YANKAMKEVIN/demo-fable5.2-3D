@@ -139,6 +139,21 @@
   #unphoto { position: absolute; top: 16px; right: max(16px, env(safe-area-inset-right, 0px)); opacity: 0.6; }
   .surface, .surface .card-body { display: flex; flex-direction: column; gap: 10px; }
   .site { margin: 0; font-size: 13px; font-variant-numeric: tabular-nums; }
+  /* On the ground: small instruments above the card (heading, latitude, altitude, speed, local time). */
+  .dock { pointer-events: none; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; width: 100%; flex: 0 1 auto; min-height: 0; }
+  .dock > .card { flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+  .instruments { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; }
+  .inst { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 5px 11px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+  .inst small { display: block; color: var(--muted); font-size: 10.5px; line-height: 1.2; letter-spacing: 0.06em; text-transform: uppercase; }
+  .inst b { display: block; font-family: var(--font-display); font-weight: 600; font-size: 14px; line-height: 1.25; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .inst svg { flex: none; }
+  .inst .dial { fill: none; stroke: var(--track); stroke-width: 1.5; }
+  .inst .mark { stroke: var(--muted); stroke-width: 1.5; stroke-linecap: round; }
+  .inst .north { fill: var(--accent); }
+  .inst .lubber { stroke: var(--fg); stroke-width: 2; stroke-linecap: round; }
+  .inst .sun { fill: #ffd27a; stroke: #ffd27a; stroke-width: 1.6; stroke-linecap: round; }
+  .inst .moon { fill: #c9d6ee; }
+  #i-head { min-width: 7ch; } #i-alt { min-width: 6ch; } #i-speed { min-width: 9ch; } #i-time { min-width: 7ch; }
   .site strong { font-family: var(--font-display); font-weight: 600; }
   .how { color: var(--muted); font-size: 12.5px; flex: 1 1 150px; min-width: 0; }
   #fade { position: absolute; inset: 0; background: #dfe9ff; opacity: 0; pointer-events: none; transition: opacity 0.7s ease; }
@@ -164,7 +179,8 @@
     .sliders { grid-template-columns: 1fr 1fr 1fr; gap: 6px 12px; }
     .field label { font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .stats { padding-top: 8px; }
-    .surface { width: calc(100% - 132px); }
+    .surface, .instruments { width: calc(100% - 132px); }
+    .inst { padding: 4px 9px; min-height: 40px; }
   }
 </style>
 
@@ -220,10 +236,30 @@
       </div>
     </section>
 
-    <section class="card surface" id="surface" aria-label="À la surface" data-fold="surface" hidden>
+    <section class="dock" id="surface" aria-label="À la surface" hidden>
+      <div class="instruments" role="group" aria-label="Instruments">
+        <div class="inst">
+          <svg viewBox="0 0 32 32" width="32" height="32" aria-hidden="true">
+            <circle class="dial" cx="16" cy="16" r="14"/>
+            <g id="i-rose"><path class="north" d="M16 4l3.2 7h-6.4z"/><path class="mark" d="M16 25v3M4 16h3M25 16h3"/></g>
+            <path class="lubber" d="M16 0v4"/>
+          </svg>
+          <div><small>Cap</small><b id="i-head">N 000°</b></div>
+        </div>
+        <div class="inst"><div><small>Latitude</small><b id="i-lat">0° N</b></div></div>
+        <div class="inst"><div><small>Altitude</small><b id="i-alt">0 m</b></div></div>
+        <div class="inst" id="i-speedbox" hidden><div><small>Vitesse</small><b id="i-speed">0 km/h</b></div></div>
+        <div class="inst">
+          <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+            <g id="i-sun" class="sun"><circle cx="12" cy="12" r="4.2" stroke="none"/><path fill="none" d="M12 2.5v2.6M12 18.9v2.6M2.5 12h2.6M18.9 12h2.6M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></g>
+            <path id="i-moon" class="moon" d="M15.5 3.2a9 9 0 1 0 5.3 13.4A7.6 7.6 0 0 1 15.5 3.2z" hidden/>
+          </svg>
+          <div><small id="i-day">Heure locale</small><b id="i-time">12 h 00</b></div>
+        </div>
+      </div>
+      <div class="card surface" data-fold="surface">
       <button class="fold bar" type="button" aria-expanded="true" aria-controls="surface-body"><span>À la surface</span><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <div class="card-body" id="surface-body">
-      <p class="site" id="site">Descente en cours…</p>
       <p class="hint" id="fauna" style="display:block"></p>
       <div class="field"><label for="speed2">Vitesse du temps</label><input id="speed2" type="range" min="0" max="8" step="0.1" value="1"></div>
       <div class="actions">
@@ -231,6 +267,7 @@
         <span class="how" id="how">Glissez pour regarder. Marchez avec les flèches, ZQSD ou la manette à l'écran.</span>
       </div>
       <p class="stats" id="stats2" aria-live="off"></p>
+      </div>
       </div>
     </section>
 
@@ -1718,7 +1755,7 @@ void main(){
         if (transit.t >= 5.5) {
           mode = 'surface'; transit.phase = '';
           walk.yaw = transit.yawT; walk.pitch = 0; walk.y = Math.max(terrJ(0, 0), 0) + 1.8;
-          $('fly').textContent = 'Piloter le vaisseau'; $('how').textContent = HOW_WALK; $('site').textContent = 'Posé.';
+          $('fly').textContent = 'Piloter le vaisseau'; $('how').textContent = HOW_WALK; siteT = 0;
           setUI('surface');
         }
       } else if (ph === 'rise') {
@@ -1812,16 +1849,40 @@ void main(){
     }
     renderer.autoClear = true;
 
-    if (mode === 'surface' && now - siteT > 400) {
-      siteT = now;
-      const px = ship.on ? ship.x : walk.x, pz = ship.on ? ship.z : walk.z;
-      nearSea = 0; for (let i = 0; i < 6; i++) if (terrJ(px + Math.cos(i * 1.05) * 28, pz + Math.sin(i * 1.05) * 28) < 0) nearSea += 1 / 6;
-      const lat = Math.asin(clamp(site.s.y, -1, 1)) * 180 / Math.PI, el = Math.asin(clamp(su.uSunL.value.y, -1, 1)) * 180 / Math.PI;
-      const altM = Math.round(Math.max(ship.on ? ship.y : lastGround, 0) * 10);
-      $('site').textContent = state.name + ' · ' + Math.abs(lat).toFixed(0) + '° ' + (lat >= 0 ? 'N' : 'S') + ' · altitude ' + altM.toLocaleString('fr-FR') + ' m · ' +
-        (ship.on ? Math.round(ship.speed * 36).toLocaleString('fr-FR') + ' km/h · ' : '') +
-        (el >= 0 ? 'soleil à ' + el.toFixed(0) + '° au-dessus de l\'horizon' : 'nuit, soleil ' + Math.abs(el).toFixed(0) + '° sous l\'horizon');
+    if (mode === 'surface') {
+      // the compass turns with you every frame; the other instruments refresh four times a second
+      const deg = headingDeg(ship.on ? ship.yaw : walk.yaw);
+      if (Math.abs(deg - inst.deg) > 0.4) { inst.deg = deg; inst.rose.setAttribute('transform', 'rotate(' + (-deg).toFixed(1) + ' 16 16)'); }
+      if (now - siteT > 250) {
+        siteT = now;
+        const px = ship.on ? ship.x : walk.x, pz = ship.on ? ship.z : walk.z;
+        nearSea = 0; for (let i = 0; i < 6; i++) if (terrJ(px + Math.cos(i * 1.05) * 28, pz + Math.sin(i * 1.05) * 28) < 0) nearSea += 1 / 6;
+        const altM = Math.round(Math.max(ship.on ? ship.y : lastGround, 0) * 10), day = su.uSunL.value.y >= 0;
+        setText(inst.head, headingText(deg)); setText(inst.lat, latText(site.s.y));
+        setText(inst.alt, altM.toLocaleString('fr-FR') + ' m');
+        if (inst.speedBox.hidden === ship.on) inst.speedBox.hidden = !ship.on;
+        if (ship.on) setText(inst.speed, Math.round(ship.speed * 36).toLocaleString('fr-FR') + ' km/h');
+        setText(inst.time, clockText(localHour(site.s, pu.uSun.value)));
+        setText(inst.day, day ? 'Jour' : 'Nuit');
+        if (inst.sun.hasAttribute('hidden') === day) { inst.sun.toggleAttribute('hidden', !day); inst.moon.toggleAttribute('hidden', day); }
+      }
     }
+  }
+
+  /* ---------- instruments ---------- */
+  const inst = { deg: -1, rose: $('i-rose'), head: $('i-head'), lat: $('i-lat'), alt: $('i-alt'), speedBox: $('i-speedbox'), speed: $('i-speed'), time: $('i-time'), day: $('i-day'), sun: $('i-sun'), moon: $('i-moon') };
+  const setText = (el, s) => { if (el.textContent !== s) el.textContent = s; };
+  const CARDINALS = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
+  const headingText = (deg) => { const d = Math.round(deg) % 360; return CARDINALS[Math.round(d / 45) % 8] + ' ' + String(d).padStart(3, '0') + '°'; };
+  // local solar time: 12 h when the sun crosses the meridian of the place (both vectors in the planet's frame)
+  const localHour = (s, sunP) => { const h = 12 + wrapA(Math.atan2(s.x, s.z) - Math.atan2(sunP.x, sunP.z)) * 12 / Math.PI; return ((h % 24) + 24) % 24; };
+  const clockText = (h) => { const m = Math.floor(h * 60 + 1e-6) % 1440; return Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0'); };
+  // heading from true north. The ground frame is carried along as you travel, so its "north" drifts: find the pole again.
+  function headingDeg(yaw) {
+    v3.copy(Y).addScaledVector(site.s, -site.s.y);
+    const a = v3.lengthSq() > 1e-6 ? Math.atan2(v3.dot(site.east), v3.dot(site.north)) : 0;
+    const d = ((yaw - a) * 180 / Math.PI) % 360;
+    return d < 0 ? d + 360 : d;
   }
 
   $('land').addEventListener('click', () => { const s0 = pu.uCam.value.clone().normalize(); s0.y *= 0.35; beginLanding(s0.normalize(), true); });
