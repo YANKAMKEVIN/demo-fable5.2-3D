@@ -57,7 +57,7 @@
   .title .card-body { display: flex; flex-direction: column; gap: 6px; }
   /* Folding panels: each card can shrink to a one-line bar so the planet keeps the screen. */
   .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-  .card-head > div { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .card-head > div:first-child { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
   .fold { font: inherit; background: transparent; color: var(--muted); border: 0; padding: 0; margin: 0; cursor: pointer; display: flex; align-items: center; gap: 8px; }
   .fold:hover { color: var(--fg); }
   .fold svg { flex: none; transition: transform 0.2s ease; }
@@ -67,6 +67,17 @@
   .fold.icon { flex: none; width: 28px; height: 28px; justify-content: center; border: 1px solid var(--line); border-radius: 8px; margin: -3px -5px 0 0; }
   .fold.icon:hover { border-color: var(--accent); }
   .card.folded { padding-block: 9px; }
+  .head-btns { flex: none; display: flex; gap: 11px; }
+  #b-help b { font-family: var(--font-display); font-size: 14px; }
+  /* Keyboard help: the keys that matter in the current view */
+  #help { position: absolute; inset: 0; margin: auto; z-index: 3; height: fit-content; max-height: calc(100% - 32px); overflow-y: auto; width: min(360px, calc(100% - 32px)); display: flex; flex-direction: column; gap: 10px; }
+  #help h2 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 15px; }
+  #help dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 7px 14px; align-items: center; font-size: 13px; }
+  #help dt { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; color: var(--muted); font-size: 12px; }
+  #help dd { margin: 0; }
+  kbd { display: inline-block; min-width: 24px; padding: 2px 6px; text-align: center; font: 600 12px/1.4 var(--font-body); color: var(--fg); background: var(--track); border: 1px solid #3a4560; border-bottom-width: 2px; border-radius: 6px; }
+  .photo #help { display: none; }
+  @media (min-width: 700px) { #help { inset: 16px max(16px, env(safe-area-inset-right, 0px)) auto auto; margin: 0; } }
   .title.folded h1 { display: none; }
   .title.folded .fold.icon { margin-block: -4px; }
   @media (prefers-reduced-motion: reduce) { .fold svg { transition: none; } }
@@ -264,7 +275,10 @@
           <h1>Atelier de planètes</h1>
           <p class="planet-id"><strong id="pname">Veloria-4</strong> <span id="ptype">· monde tellurique</span></p>
         </div>
-        <button class="fold icon" type="button" aria-expanded="true" aria-controls="title-body" aria-label="Replier ou déplier le panneau de titre" title="Replier ou déplier"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <div class="head-btns">
+        <button id="b-help" class="fold icon" type="button" aria-expanded="false" aria-controls="help" aria-label="Raccourcis clavier" title="Raccourcis clavier (?)"><b aria-hidden="true">?</b></button>
+        <button class="fold icon" data-fold-btn type="button" aria-expanded="true" aria-controls="title-body" aria-label="Replier ou déplier le panneau de titre" title="Replier ou déplier"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
       </div>
       <div class="card-body" id="title-body">
       <p class="hint" id="hint">Continents, climat, nuages, anneaux et éclipses sont calculés pixel par pixel, en direct. Glissez pour tourner, zoomez pour approcher, double-cliquez sur un lieu pour vous y poser.</p>
@@ -371,6 +385,11 @@
   </div>
   <div id="stick" hidden aria-hidden="true"><i></i></div>
   <button id="boost" type="button" aria-pressed="false" hidden>Courir</button>
+  <section id="help" class="card" aria-label="Raccourcis clavier" hidden>
+    <h2 id="help-title">Raccourcis</h2>
+    <dl id="help-keys"></dl>
+    <div class="actions"><button id="help-close" class="btn ghost" type="button">Fermer</button></div>
+  </section>
   <div id="fade"></div>
 
   <p id="fallback" class="card" hidden>La 3D n'a pas pu démarrer : ce navigateur ne donne pas accès à WebGL. Essayez dans un navigateur récent avec l'accélération matérielle activée.</p>
@@ -1184,7 +1203,7 @@ void main(){
     }, 6000);
   }
   document.querySelectorAll('[data-fold]').forEach((card) => {
-    const key = card.dataset.fold, btn = card.querySelector('.fold'), body = card.querySelector('.card-body');
+    const key = card.dataset.fold, btn = card.querySelector('.fold[data-fold-btn], .fold.bar'), body = card.querySelector('.card-body');
     folds[key] = { card: card, btn: btn, body: body };
     btn.addEventListener('click', () => { clearTimeout(autoFoldT); setFold(key, !card.classList.contains('folded'), true); measureView(); });
     if (store.get('fold.' + key) === '1') setFold(key, true, false);
@@ -1356,6 +1375,7 @@ void main(){
     if (which !== 'surface') { setBoost(false); $('notice').hidden = true; }
     $('syscard').hidden = which !== 'system'; $('syslabels').hidden = which !== 'system';
     if (which !== 'system') closeWorldCard();
+    if (!$('help').hidden) fillHelp();
   }
   let toastT = 0;
   function setBoost(on) { boost = on; $('boost').setAttribute('aria-pressed', String(on)); $('boost').textContent = ship.on ? 'Turbo' : 'Courir'; }
@@ -2089,6 +2109,7 @@ void main(){
       ship.on = false; su.uShip.value.w = 0; walk.x = ship.x; walk.z = ship.z; walk.y = camS.y; walk.yaw = ship.yaw; walk.pitch = 0;
     }
     $('fly').textContent = ship.on ? 'Marcher' : 'Piloter le vaisseau'; setBoost(false);
+    if (!$('help').hidden) fillHelp();
     $('how').textContent = ship.on ? HOW_FLY : HOW_WALK;
   });
   /* ---------- "land here": the reticle under the pointer, and the long press on touch screens ---------- */
@@ -2196,8 +2217,46 @@ void main(){
     }
     retLabel.style.transform = 'translate(' + lx.toFixed(0) + 'px,' + ly.toFixed(0) + 'px)';
   }
+  /* ---------- keyboard: shortcuts for the buttons, and a panel that lists the keys of the current view ---------- */
+  const HELP = {
+    orbit: ['en orbite', [['← → ↑ ↓', 'Tourner autour de la planète (scène active)'], ['+ −', 'Approcher, reculer'], ['Double-clic', 'Se poser à cet endroit']]],
+    surface: ['à pied', [['↑ ↓|Z S', 'Avancer, reculer'], ['← →', 'Tourner'], ['Q D', 'Pas de côté'], ['Maj', 'Courir'], ['V', 'Monter dans le vaisseau'], ['R', 'Redécoller']]],
+    ship: ['en vaisseau', [['← →|Q D', 'Virer'], ['↑ ↓|Z S', 'Monter, descendre'], ['Maj', 'Accélérer'], ['V', 'Revenir à pied'], ['R', 'Redécoller']]],
+    system: ['dans le système', [['Clic', 'Ouvrir la fiche d\'un monde, puis s\'y rendre'], ['Échap', 'Fermer la fiche']]],
+    always: [['P', 'Mode photo'], ['M', 'Son'], ['?', 'Afficher ou masquer cette aide']]
+  };
+  function fillHelp() {
+    const set = mode === 'system' ? HELP.system : (mode === 'surface' ? (ship.on ? HELP.ship : HELP.surface) : HELP.orbit);
+    $('help-title').textContent = 'Raccourcis ' + set[0];
+    const dl = $('help-keys'); dl.textContent = '';
+    set[1].concat(HELP.always).forEach((row) => {
+      const dt = document.createElement('dt'), dd = document.createElement('dd');
+      row[0].split('|').forEach((grp, gi) => {
+        if (gi) dt.appendChild(document.createTextNode('ou'));
+        grp.split(' ').forEach((k) => { const kb = document.createElement('kbd'); kb.textContent = k; dt.appendChild(kb); });
+      });
+      dd.textContent = row[1]; dl.appendChild(dt); dl.appendChild(dd);
+    });
+  }
+  function setHelp(on) {
+    if (on) fillHelp();
+    $('help').hidden = !on; $('b-help').setAttribute('aria-expanded', String(on));
+    if (on) $('help-close').focus(); else if (document.activeElement === $('help-close')) canvas.focus();
+  }
+  $('b-help').addEventListener('click', () => setHelp($('help').hidden));
+  $('help-close').addEventListener('click', () => setHelp(false));
   window.addEventListener('keydown', (ev) => {
-    if (ev.code === 'Escape' && photo) setPhoto(false);
+    const tg = ev.target, typing = tg && ((tg.tagName === 'INPUT' && tg.type !== 'range' && tg.type !== 'checkbox') || tg.tagName === 'TEXTAREA');
+    if (!typing && !ev.repeat && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+      const k = (ev.key || '').toLowerCase();
+      if (k === '?') { setHelp($('help').hidden); ev.preventDefault(); }
+      else if (k === 'p') setPhoto(!photo);
+      else if (k === 'm') setSound(!audio.on);
+      else if (k === 'v' && mode === 'surface') { $('fly').click(); }
+      else if (k === 'r' && mode === 'surface') takeOff();
+    }
+    if (ev.code === 'Escape' && !$('help').hidden) setHelp(false);
+    else if (ev.code === 'Escape' && photo) setPhoto(false);
     else if (ev.code === 'Escape') closeWorldCard();
     if (mode !== 'surface' || (ev.target && ev.target.tagName === 'INPUT')) return;
     keys[ev.code] = true;
