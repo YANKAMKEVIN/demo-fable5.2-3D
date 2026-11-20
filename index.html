@@ -152,7 +152,21 @@
   #reticle span:empty { display: none; }
   .photo .hud, .photo #stick, .photo #syslabels { opacity: 0; pointer-events: none; }
   .photo .hud .card { pointer-events: none; }
-  #unphoto { position: absolute; top: 16px; right: max(16px, env(safe-area-inset-right, 0px)); opacity: 0.6; }
+  /* Photo mode: a small bar to pick a frame, sign and save the picture. Nothing of it ends up in the image. */
+  #photobar { position: absolute; top: 16px; right: max(16px, env(safe-area-inset-right, 0px)); max-width: calc(100% - 32px); display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 10px; padding: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; opacity: 0.82; transition: opacity 0.2s ease; }
+  #photobar:hover, #photobar:focus-within { opacity: 1; }
+  #photobar .btn { padding: 6px 12px; font-size: 13px; }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button { font: inherit; font-size: 12.5px; font-weight: 500; background: transparent; color: var(--fg); border: 0; border-left: 1px solid var(--line); padding: 5px 10px; cursor: pointer; }
+  .seg button:first-child { border-left: 0; }
+  .seg button:hover { background: var(--track); }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); font-weight: 600; }
+  .seg button:focus-visible { outline-offset: -2px; }
+  #frame { position: absolute; pointer-events: none; }
+  #frame.cut { box-shadow: 0 0 0 200vmax rgba(3, 4, 11, 0.8); outline: 1px solid rgba(233, 238, 248, 0.4); }
+  #signature { position: absolute; left: 4%; bottom: 4%; margin: 0; font-family: var(--font-display); line-height: 1.2; color: #fff; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.75); }
+  #signature strong { display: block; font-weight: 600; }
+  #signature span { display: block; font-size: 0.55em; font-weight: 500; opacity: 0.85; }
   .surface, .surface .card-body { display: flex; flex-direction: column; gap: 10px; }
   .site { margin: 0; font-size: 13px; font-variant-numeric: tabular-nums; }
   /* On the ground: small instruments above the card (heading, latitude, altitude, speed, local time). */
@@ -297,7 +311,18 @@
   </div>
   <div id="syslabels" hidden></div>
   <div id="reticle" aria-hidden="true" hidden><i></i><svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="19"/></svg><p id="ret-label"><b id="ret-where"></b><span id="ret-how"></span></p></div>
-  <button id="unphoto" class="tool" type="button" hidden>Afficher l'interface</button>
+  <div id="frame" hidden><p id="signature" hidden><strong id="sig-name"></strong><span id="sig-sub"></span></p></div>
+  <div id="photobar" role="group" aria-label="Mode photo" hidden>
+    <div class="seg" role="group" aria-label="Cadre de l'image">
+      <button type="button" data-frame="0" aria-pressed="true">Plein écran</button>
+      <button type="button" data-frame="1.7778" aria-pressed="false">16:9</button>
+      <button type="button" data-frame="0.8" aria-pressed="false">4:5</button>
+      <button type="button" data-frame="1" aria-pressed="false">Carré</button>
+    </div>
+    <label class="check" for="sign"><input id="sign" type="checkbox"> Signature</label>
+    <button id="savephoto" class="btn" type="button">Enregistrer l'image</button>
+    <button id="unphoto" class="tool" type="button">Afficher l'interface</button>
+  </div>
   <div id="stick" hidden aria-hidden="true"><i></i></div>
   <div id="fade"></div>
 
@@ -1078,6 +1103,7 @@ void main(){
     camera.aspect = w / h;
     camera.fov = w / h < 0.8 ? 52 : 40;
     measureView(); applyView();
+    if (photo) layoutFrame();
     if (firstSize) { firstSize = false; if (w / h < 0.8) { cam.r = cam.tR = 6.4; } }
   }
   if (window.ResizeObserver) new ResizeObserver(resize).observe(stage);
@@ -2223,9 +2249,62 @@ void main(){
   $('code').addEventListener('change', loadCode);
   $('code').addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); loadCode(); } });
   window.addEventListener('hashchange', () => { applyCode(location.hash); });
-  function setPhoto(on) { photo = on; stage.classList.toggle('photo', on); $('unphoto').hidden = !on; }
+  const frameEl = $('frame'), shot = { ratio: 0, sign: false, ask: false, x: 0, y: 0, w: 1, h: 1, fs: 16, okT: 0 };
+  // the frame is the largest box of the chosen ratio that fits the screen; what is outside is dimmed, and cut from the saved image
+  function layoutFrame() {
+    const W = Math.max(1, stage.clientWidth), H = Math.max(1, stage.clientHeight);
+    shot.w = shot.ratio ? Math.min(W, H * shot.ratio) : W; shot.h = shot.ratio ? shot.w / shot.ratio : H;
+    shot.x = (W - shot.w) / 2; shot.y = (H - shot.h) / 2; shot.fs = Math.max(13, shot.h * 0.034);
+    frameEl.style.left = shot.x + 'px'; frameEl.style.top = shot.y + 'px'; frameEl.style.width = shot.w + 'px'; frameEl.style.height = shot.h + 'px';
+    frameEl.classList.toggle('cut', shot.ratio > 0);
+    $('signature').style.fontSize = shot.fs.toFixed(1) + 'px';
+  }
+  const signatureText = () => (mode === 'system' ? ['Atelier de planètes', 'six mondes autour d\'une étoile'] : [state.name, PRESETS[state.preset].type + ' · Atelier de planètes']);
+  function showSignature() {
+    $('signature').hidden = !shot.sign;
+    if (shot.sign) { const t = signatureText(); $('sig-name').textContent = t[0]; $('sig-sub').textContent = t[1]; }
+  }
+  function setPhoto(on) {
+    photo = on; stage.classList.toggle('photo', on);
+    $('photobar').hidden = !on; frameEl.hidden = !on;
+    if (on) { layoutFrame(); showSignature(); }
+  }
+  // called from the frame loop right after the scene is drawn, while the WebGL image is still there to be read
+  function savePhoto() {
+    const k = canvas.width / Math.max(1, canvas.clientWidth);
+    const out = document.createElement('canvas');
+    out.width = Math.max(1, Math.round(shot.w * k)); out.height = Math.max(1, Math.round(shot.h * k));
+    const g = out.getContext('2d');
+    g.drawImage(canvas, Math.round(shot.x * k), Math.round(shot.y * k), out.width, out.height, 0, 0, out.width, out.height);
+    if (shot.sign) {
+      const t = signatureText(), fs = shot.fs * k, x = out.width * 0.04, y = out.height * 0.96;
+      g.fillStyle = '#fff'; g.textBaseline = 'alphabetic'; g.shadowColor = 'rgba(0,0,0,0.75)'; g.shadowBlur = 8 * k; g.shadowOffsetY = k;
+      g.globalAlpha = 0.85; g.font = '500 ' + (fs * 0.55).toFixed(1) + 'px "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif'; g.fillText(t[1], x, y - fs * 0.12);
+      g.globalAlpha = 1; g.font = '600 ' + fs.toFixed(1) + 'px "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif'; g.fillText(t[0], x, y - fs * 0.9);
+    }
+    const base = mode === 'system' ? 'systeme' : (state.name.normalize('NFD').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'planete');
+    const done = (blob) => {
+      const btn = $('savephoto');
+      if (!blob) { btn.textContent = 'Enregistrement impossible'; }
+      else {
+        const a = document.createElement('a'), url = URL.createObjectURL(blob);
+        a.href = url; a.download = base + '.png'; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+        btn.textContent = 'Image enregistrée';
+      }
+      clearTimeout(shot.okT); shot.okT = setTimeout(() => { btn.textContent = 'Enregistrer l\'image'; }, 2200);
+    };
+    try { out.toBlob(done, 'image/png'); } catch (e) { done(null); }
+  }
   $('b-photo').addEventListener('click', () => setPhoto(true));
   $('unphoto').addEventListener('click', () => setPhoto(false));
+  $('savephoto').addEventListener('click', () => { shot.ask = true; });
+  $('sign').addEventListener('change', (e) => { shot.sign = e.target.checked; showSignature(); });
+  document.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', () => {
+    shot.ratio = parseFloat(b.dataset.frame) || 0;
+    document.querySelectorAll('.seg button').forEach((o) => o.setAttribute('aria-pressed', String(o === b)));
+    layoutFrame();
+  }));
 
   /* =====================================================================
      Sound: everything is synthesised, no audio file
@@ -2378,6 +2457,7 @@ void main(){
     else if (ph === 'dissolve') surfFrame(dt, now, sm(0, 1, transit.t / 1.1), true);
     else if (ph === 'undissolve') surfFrame(dt, now, 1 - sm(0, 1, transit.t / 1.1), true);
     else renderOrbit();
+    if (shot.ask) { shot.ask = false; savePhoto(); }
     updateReticle(now);
     audioFrame();
 
