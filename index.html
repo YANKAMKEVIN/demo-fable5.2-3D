@@ -147,7 +147,14 @@
   .buttons { display: flex; gap: 8px; flex-wrap: wrap; }
   .check { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; cursor: pointer; }
   .check input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
-  .stats { margin: 0; padding-top: 10px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  /* "À propos": the technical figures and the link to the first demo, folded away by default */
+  .about { padding-top: 9px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+  .about summary { width: fit-content; cursor: pointer; font-weight: 500; }
+  .about summary:hover { color: var(--fg); }
+  .about summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+  .about p { margin: 6px 0 0; }
+  .about .perf { font-variant-numeric: tabular-nums; }
+  .about a { color: var(--accent); }
 
   .tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
   .tool { display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 12.5px; font-weight: 500; background: transparent; color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; cursor: pointer; }
@@ -292,7 +299,6 @@
     .sliders { gap: 6px 14px; }
     .field label { font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .lbl output { font-size: 11.5px; }
-    .stats { padding-top: 8px; }
     .surface, .instruments { width: calc(100% - 132px); }
     .notice { font-size: 12.5px; }
     #boost { right: calc(max(20px, env(safe-area-inset-right, 0px)) + 20px); bottom: 140px; }
@@ -354,7 +360,12 @@
         <div class="buttons"><button id="land" class="btn" type="button">Se poser</button><button id="random" class="btn ghost" type="button">Planète au hasard</button></div>
         <label class="check" for="auto"><input id="auto" type="checkbox" checked> Caméra en orbite</label>
       </div>
-      <p class="stats" id="stats" aria-live="off">Allumage du soleil…</p>
+      <details class="about">
+        <summary>À propos</summary>
+        <p>Aucune texture, aucun modèle importé : relief, climat, faune et sons sont calculés en direct.</p>
+        <p class="perf" id="stats">Allumage du soleil…</p>
+        <p>Première démo de la série : <a href="ile-au-phare.html">L'île au phare</a>.</p>
+      </details>
       </div>
     </section>
 
@@ -389,7 +400,11 @@
         <div class="buttons"><button id="takeoff" class="btn" type="button">Redécoller</button><button id="fly" class="btn ghost" type="button">Piloter le vaisseau</button></div>
         <span class="how" id="how">Glissez pour regarder. Marchez avec les flèches, ZQSD ou la manette à l'écran.</span>
       </div>
-      <p class="stats" id="stats2" aria-live="off"></p>
+      <details class="about">
+        <summary>À propos</summary>
+        <p class="perf" id="stats2"></p>
+        <p>La résolution s'adapte à la vitesse de l'appareil.</p>
+      </details>
       </div>
       </div>
     </section>
@@ -2762,8 +2777,7 @@ void main(){
         else if (fast >= 5 && quality < 1) { quality = Math.min(1, quality * 1.15); fast = 0; resize(); }
       }
       const sz = renderer.getDrawingBufferSize(new THREE.Vector2());
-      $('stats').textContent = sz.x + ' × ' + sz.y + ' pixels · ' + fps + ' images/s · aucune texture, aucun modèle importé';
-      $('stats2').textContent = sz.x + ' × ' + sz.y + ' pixels · ' + fps + ' images/s';
+      $('stats').textContent = $('stats2').textContent = 'Rendu : ' + sz.x + ' × ' + sz.y + ' pixels · ' + fps + ' images/s';
       frames = 0; statT = now;
     }
     requestAnimationFrame(frame);
