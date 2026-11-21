@@ -43,6 +43,9 @@ async function open(browser, opts) {
 const helpKeys = (page) => page.evaluate(() => [...document.querySelectorAll('#help-keys dt')].map((d) => [...d.querySelectorAll('kbd')].map((k) => k.textContent).join(' ')));
 const press = (page, code, key) => page.evaluate(([code, key]) => window.dispatchEvent(new KeyboardEvent('keydown', { code, key, bubbles: true })), [code, key]);
 const release = (page, code, key) => page.evaluate(([code, key]) => window.dispatchEvent(new KeyboardEvent('keyup', { code, key, bubbles: true })), [code, key]);
+// on the ground a software-rendered frame can take seconds and Playwright's pointer clicks wait for frames, and the
+// system labels never stop moving: there the buttons are pressed from the page itself (the same click handler runs)
+const press1 = (page, sel) => page.$eval(sel, (b) => b.click());
 const shown = (page, id) => page.evaluate((id) => !document.getElementById(id).hidden, id);
 
 async function testLayouts(browser) {
@@ -58,17 +61,21 @@ async function testLayouts(browser) {
   }
 }
 
-/* the world card must not hide the labels of the other worlds when there is room elsewhere */
-async function checkWorldCards(page, tag) {
-  await page.click('#b-system');
-  await page.waitForFunction(() => !document.getElementById('syslabels').hidden, null, { timeout: LONG });
-  // wait for the camera to settle: the labels stop sliding across the screen
+// in the system view, wait for the camera to settle: the labels stop sliding across the screen
+async function settle(page) {
   let last = '';
   for (let k = 0; k < 120; k++) {
     await page.waitForTimeout(500);
     const now = await page.evaluate(() => [...document.querySelectorAll('#syslabels button')].map((b) => b.style.transform.replace(/\.\d+/g, '')).join());
-    if (now === last) break; last = now;
+    if (now === last) return; last = now;
   }
+}
+
+/* the world card must not hide the labels of the other worlds when there is room elsewhere */
+async function checkWorldCards(page, tag) {
+  await page.click('#b-system');
+  await page.waitForFunction(() => !document.getElementById('syslabels').hidden, null, { timeout: LONG });
+  await settle(page);
   const n = await page.locator('#syslabels button').count();
   check(tag + 'six étiquettes dans le système', n === 6, n);
   let worst = 0, most = 0, total = 0;
@@ -127,22 +134,23 @@ async function testJourney(browser, locale) {
 
   // walk, fly, take off
   await page.keyboard.down('ArrowUp'); await page.waitForTimeout(1500); await page.keyboard.up('ArrowUp');
-  await page.click('#fly');
+  await press1(page, '#fly');
   await page.waitForTimeout(1500);
   check('en vaisseau : le bouton devient Turbo', (await page.textContent('#boost')) === 'Turbo');
   check('en vaisseau : vitesse affichée', await shown(page, 'i-speedbox'));
-  await page.click('#takeoff');
+  await press1(page, '#takeoff');
   await page.waitForFunction(() => !document.getElementById('controls').hidden, null, { timeout: LONG });
   check('redécollé : retour en orbite', true);
 
   // travel to another world
   await page.click('#b-system');
   await page.waitForFunction(() => !document.getElementById('syslabels').hidden, null, { timeout: LONG });
-  await page.waitForTimeout(2500);
+  await settle(page);
   const before = await page.textContent('#pname');
-  const target = page.locator('#syslabels button:not(.here)').first();
-  await target.click(); await page.waitForTimeout(400);
-  await page.click('#wc-go');
+  // first press opens the card, the card's button starts the trip
+  await press1(page, '#syslabels button:not(.here)'); await page.waitForTimeout(400);
+  check('voyage : la fiche du monde choisi est ouverte', await shown(page, 'worldcard'));
+  await press1(page, '#wc-go');
   await page.waitForFunction(() => !document.getElementById('controls').hidden, null, { timeout: LONG });
   const after = await page.textContent('#pname');
   check('voyage : un autre monde est chargé', after !== before, [before, after]);
