@@ -1,0 +1,12 @@
+{
+  "name": "atelier-de-planetes",
+  "private": true,
+  "description": "Tests de parcours de la démo (la démo elle-même n'a besoin de rien : ouvrir index.html).",
+  "scripts": {
+    "test": "node tests/parcours.js",
+    "test:rapide": "node tests/parcours.js --rapide"
+  },
+  "devDependencies": {
+    "playwright": "^1.48.0"
+  }
+}

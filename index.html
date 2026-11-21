@@ -2020,7 +2020,7 @@ void main(){
         if (transit.t >= 5.5) {
           mode = 'surface'; transit.phase = '';
           walk.yaw = transit.yawT; walk.pitch = 0; walk.y = Math.max(terrJ(0, 0), 0) + 1.8;
-          $('fly').textContent = 'Piloter le vaisseau'; $('how').textContent = HOW_WALK; siteT = 0;
+          $('fly').textContent = 'Piloter le vaisseau'; $('how').textContent = HOW_WALK(); siteT = 0;
           setUI('surface');
         }
       } else if (ph === 'rise') {
@@ -2033,8 +2033,18 @@ void main(){
       if (cam.r > 77 && voff < 0.03) startSystem();
     }
   }
-  const HOW_WALK = 'Glissez pour regarder. Marchez avec les flèches, ZQSD ou la manette à l\'écran.';
-  const HOW_FLY = 'Flèches, ZQSD ou manette : virer, monter, descendre. Maj : accélérer. Glissez pour regarder autour.';
+  /* the movement keys are read by position (KeyW, KeyA…), so their names depend on the viewer's keyboard:
+     the browser's layout map where it gives one, else what the keys typed so far reveal, else the language */
+  const KEYCAPS = { KeyW: 'W', KeyA: 'A', KeyS: 'S', KeyD: 'D' };
+  const keycap = /^fr(-(fr|be|lu|mc))?$/i.test(navigator.language || '') ? { KeyW: 'Z', KeyA: 'Q', KeyS: 'S', KeyD: 'D' } : Object.assign({}, KEYCAPS);
+  const moveKeys = () => keycap.KeyW + keycap.KeyA + keycap.KeyS + keycap.KeyD;
+  function learnKeycap(code, key) {
+    if (!(code in KEYCAPS) || !key || key.length !== 1 || !/\p{L}/u.test(key)) return false;
+    const v = key.toUpperCase(); if (keycap[code] === v) return false;
+    keycap[code] = v; return true;
+  }
+  const HOW_WALK = () => 'Glissez pour regarder. Marchez avec les flèches, ' + moveKeys() + ' ou la manette à l\'écran.';
+  const HOW_FLY = () => 'Flèches, ' + moveKeys() + ' ou manette : virer, monter, descendre. Maj : accélérer. Glissez pour regarder autour.';
 
   function surfFrame(dt, now, alpha, withOrbit) {
     let x, y, z, yaw, pitch, roll = 0;
@@ -2163,7 +2173,7 @@ void main(){
     }
     $('fly').textContent = ship.on ? 'Marcher' : 'Piloter le vaisseau'; setBoost(false);
     if (!$('help').hidden) fillHelp();
-    $('how').textContent = ship.on ? HOW_FLY : HOW_WALK;
+    $('how').textContent = ship.on ? HOW_FLY() : HOW_WALK();
   });
   /* ---------- "land here": the reticle under the pointer, and the long press on touch screens ---------- */
   const rayc = new THREE.Raycaster(), unitSphere = new THREE.Sphere(new THREE.Vector3(), 1);
@@ -2273,8 +2283,8 @@ void main(){
   /* ---------- keyboard: shortcuts for the buttons, and a panel that lists the keys of the current view ---------- */
   const HELP = {
     orbit: ['en orbite', [['← → ↑ ↓', 'Tourner autour de la planète (scène active)'], ['+ −', 'Approcher, reculer'], ['Double-clic', 'Se poser à cet endroit']]],
-    surface: ['à pied', [['↑ ↓|Z S', 'Avancer, reculer'], ['← →', 'Tourner'], ['Q D', 'Pas de côté'], ['Maj', 'Courir'], ['V', 'Monter dans le vaisseau'], ['R', 'Redécoller']]],
-    ship: ['en vaisseau', [['← →|Q D', 'Virer'], ['↑ ↓|Z S', 'Monter, descendre'], ['Maj', 'Accélérer'], ['V', 'Revenir à pied'], ['R', 'Redécoller']]],
+    surface: ['à pied', [['↑ ↓|KeyW KeyS', 'Avancer, reculer'], ['← →', 'Tourner'], ['KeyA KeyD', 'Pas de côté'], ['Maj', 'Courir'], ['V', 'Monter dans le vaisseau'], ['R', 'Redécoller']]],
+    ship: ['en vaisseau', [['← →|KeyA KeyD', 'Virer'], ['↑ ↓|KeyW KeyS', 'Monter, descendre'], ['Maj', 'Accélérer'], ['V', 'Revenir à pied'], ['R', 'Redécoller']]],
     system: ['dans le système', [['Clic', 'Ouvrir la fiche d\'un monde, puis s\'y rendre'], ['Échap', 'Fermer la fiche']]],
     always: [['P', 'Mode photo'], ['M', 'Son'], ['?', 'Afficher ou masquer cette aide']]
   };
@@ -2286,7 +2296,7 @@ void main(){
       const dt = document.createElement('dt'), dd = document.createElement('dd');
       row[0].split('|').forEach((grp, gi) => {
         if (gi) dt.appendChild(document.createTextNode('ou'));
-        grp.split(' ').forEach((k) => { const kb = document.createElement('kbd'); kb.textContent = k; dt.appendChild(kb); });
+        grp.split(' ').forEach((k) => { const kb = document.createElement('kbd'); kb.textContent = keycap[k] || k; dt.appendChild(kb); });
       });
       dd.textContent = row[1]; dl.appendChild(dt); dl.appendChild(dd);
     });
@@ -2296,9 +2306,22 @@ void main(){
     $('help').hidden = !on; $('b-help').setAttribute('aria-expanded', String(on));
     if (on) $('help-close').focus(); else if (document.activeElement === $('help-close')) canvas.focus();
   }
+  function relabelKeys() {
+    if (!$('help').hidden) fillHelp();
+    if (mode === 'surface') $('how').textContent = ship.on ? HOW_FLY() : HOW_WALK();
+  }
+  try {
+    if (navigator.keyboard && navigator.keyboard.getLayoutMap) {
+      navigator.keyboard.getLayoutMap().then((m) => {
+        let changed = false; for (const c in KEYCAPS) changed = learnKeycap(c, m.get(c)) || changed;
+        if (changed) relabelKeys();
+      }, () => {});
+    }
+  } catch (e) { /* the language guess stays */ }
   $('b-help').addEventListener('click', () => setHelp($('help').hidden));
   $('help-close').addEventListener('click', () => setHelp(false));
   window.addEventListener('keydown', (ev) => {
+    if (!ev.ctrlKey && !ev.metaKey && !ev.altKey && learnKeycap(ev.code, ev.key)) relabelKeys();
     const tg = ev.target, typing = tg && ((tg.tagName === 'INPUT' && tg.type !== 'range' && tg.type !== 'checkbox') || tg.tagName === 'TEXTAREA');
     if (!typing && !ev.repeat && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
       const k = (ev.key || '').toLowerCase();
@@ -2400,7 +2423,7 @@ void main(){
       fillWorld(w);
     });
   }
-  const wcard = { el: $('worldcard'), i: -1, pinned: false, t: 0, w: 248, h: 180 };
+  const wcard = { el: $('worldcard'), i: -1, pinned: false, t: 0, w: 248, h: 180, side: '' };
   function openWorldCard(i, pinned) {
     clearTimeout(wcard.t);
     const w = worlds[i], P = PRESETS[w.preset], gasW = !!P.gas, here = i === active;
@@ -2418,8 +2441,45 @@ void main(){
     $('wc-name').textContent = w.name; $('wc-type').textContent = '· ' + P.type;
     $('wc-here').hidden = !here; $('wc-go').textContent = here ? 'Y retourner' : 'S\'y rendre';
     worlds.forEach((x, j) => x.btn.classList.toggle('open', j === i));
+    if (wcard.i !== i) wcard.side = '';
     wcard.i = i; wcard.pinned = pinned; wcard.el.hidden = false;
     wcard.w = wcard.el.offsetWidth; wcard.h = wcard.el.offsetHeight;
+    worlds.forEach((x) => { x.bw = x.btn.offsetWidth; x.bh = x.btn.offsetHeight; });
+    const sr = stage.getBoundingClientRect(), pr = $('syscard').getBoundingClientRect();
+    wcard.panel = { x: pr.left - sr.left, y: pr.top - sr.top, w: pr.width, h: pr.height };
+  }
+  /* the card hangs beside its label (under it first, then above, right, left, each in two alignments), on the side
+     that hides the fewest other labels, and never leaves the screen; it only changes side when that clearly
+     uncovers more */
+  const CARD_SIDES = ['below', 'below-end', 'above', 'above-end', 'right', 'right-end', 'left', 'left-end'];
+  function cardSpot(side, l, cw, ch, W, H) {
+    const end = side.endsWith('-end'), s = end ? side.slice(0, -4) : side;
+    const x = s === 'right' ? l.x + l.w + 8 : s === 'left' ? l.x - cw - 8 : (end ? l.x + l.w - cw : l.x);
+    const y = s === 'below' ? l.y + l.h + 6 : s === 'above' ? l.y - ch - 6 : (end ? l.y + l.h - ch : l.y);
+    return { x: clamp(x, 8, Math.max(8, W - cw - 8)), y: clamp(y, 8, Math.max(8, H - ch - 8)) };
+  }
+  const overlap = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+  const onCentre = (r, o) => o.x + o.w / 2 > r.x && o.x + o.w / 2 < r.x + r.w && o.y + o.h / 2 > r.y && o.y + o.h / 2 < r.y + r.h;
+  function pickCardSide(own, labels, panel, cw, ch, W, H, prev) {
+    let best = null;
+    CARD_SIDES.forEach((side, k) => {
+      const p = cardSpot(side, own, cw, ch, W, H), r = { x: p.x, y: p.y, w: cw, h: ch };
+      // covering its own label is ruled out whenever another side can avoid it; a label whose middle is hidden
+      // can no longer be pointed at, so it costs a whole label more; the panel counts for half; later sides cost a little more
+      let cost = overlap(r, own) * 100 + k * 30;
+      labels.forEach((o) => { cost += overlap(r, o) + (onCentre(r, o) ? o.w * o.h * 2 : 0); });
+      if (panel) cost += overlap(r, panel) * 0.5;
+      if (side === prev) cost -= 300;
+      if (!best || cost < best.cost) best = { side, x: p.x, y: p.y, cost };
+    });
+    return best;
+  }
+  function placeWorldCard(w, W, H) {
+    const rect = (x) => ({ x: x.lx, y: x.ly, w: x.bw, h: x.bh });
+    const others = worlds.filter((x) => x !== w && x.lv).map(rect);
+    const b = pickCardSide(rect(w), others, wcard.panel && wcard.panel.w ? wcard.panel : null, wcard.w, wcard.h, W, H, wcard.side);
+    wcard.side = b.side;
+    wcard.el.style.transform = 'translate(' + b.x.toFixed(1) + 'px,' + b.y.toFixed(1) + 'px)';
   }
   function closeWorldCard() {
     clearTimeout(wcard.t);
@@ -2480,12 +2540,9 @@ void main(){
       w.btn.style.visibility = v3.z < 1 ? 'visible' : 'hidden';
       const lx = (v3.x * 0.5 + 0.5) * W + 14, ly = (-v3.y * 0.5 + 0.5) * H - 16;
       w.btn.style.transform = 'translate(' + lx.toFixed(1) + 'px,' + ly.toFixed(1) + 'px)';
-      if (worlds[wcard.i] === w) {
-        // the card hangs under its label, or above it near the bottom of the screen, and never leaves the screen
-        const bh = w.btn.offsetHeight, below = ly + bh + 6, cy = below + wcard.h > H - 8 ? ly - wcard.h - 6 : below;
-        wcard.el.style.transform = 'translate(' + clamp(lx, 8, Math.max(8, W - wcard.w - 8)).toFixed(1) + 'px,' + clamp(cy, 8, Math.max(8, H - wcard.h - 8)).toFixed(1) + 'px)';
-      }
+      w.lx = lx; w.ly = ly; w.lv = v3.z < 1;
     });
+    if (wcard.i >= 0) placeWorldCard(worlds[wcard.i], W, H);
     renderer.render(sysScene, sysCam);
   }
   $('b-system').addEventListener('click', enterSystem);
