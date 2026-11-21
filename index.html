@@ -2020,7 +2020,7 @@ void main(){
         if (transit.t >= 5.5) {
           mode = 'surface'; transit.phase = '';
           walk.yaw = transit.yawT; walk.pitch = 0; walk.y = Math.max(terrJ(0, 0), 0) + 1.8;
-          $('fly').textContent = 'Piloter le vaisseau'; $('how').textContent = HOW_WALK; siteT = 0;
+          $('fly').textContent = 'Piloter le vaisseau'; $('how').textContent = HOW_WALK(); siteT = 0;
           setUI('surface');
         }
       } else if (ph === 'rise') {
@@ -2033,8 +2033,18 @@ void main(){
       if (cam.r > 77 && voff < 0.03) startSystem();
     }
   }
-  const HOW_WALK = 'Glissez pour regarder. Marchez avec les flèches, ZQSD ou la manette à l\'écran.';
-  const HOW_FLY = 'Flèches, ZQSD ou manette : virer, monter, descendre. Maj : accélérer. Glissez pour regarder autour.';
+  /* the movement keys are read by position (KeyW, KeyA…), so their names depend on the viewer's keyboard:
+     the browser's layout map where it gives one, else what the keys typed so far reveal, else the language */
+  const KEYCAPS = { KeyW: 'W', KeyA: 'A', KeyS: 'S', KeyD: 'D' };
+  const keycap = /^fr(-(fr|be|lu|mc))?$/i.test(navigator.language || '') ? { KeyW: 'Z', KeyA: 'Q', KeyS: 'S', KeyD: 'D' } : Object.assign({}, KEYCAPS);
+  const moveKeys = () => keycap.KeyW + keycap.KeyA + keycap.KeyS + keycap.KeyD;
+  function learnKeycap(code, key) {
+    if (!(code in KEYCAPS) || !key || key.length !== 1 || !/\p{L}/u.test(key)) return false;
+    const v = key.toUpperCase(); if (keycap[code] === v) return false;
+    keycap[code] = v; return true;
+  }
+  const HOW_WALK = () => 'Glissez pour regarder. Marchez avec les flèches, ' + moveKeys() + ' ou la manette à l\'écran.';
+  const HOW_FLY = () => 'Flèches, ' + moveKeys() + ' ou manette : virer, monter, descendre. Maj : accélérer. Glissez pour regarder autour.';
 
   function surfFrame(dt, now, alpha, withOrbit) {
     let x, y, z, yaw, pitch, roll = 0;
@@ -2163,7 +2173,7 @@ void main(){
     }
     $('fly').textContent = ship.on ? 'Marcher' : 'Piloter le vaisseau'; setBoost(false);
     if (!$('help').hidden) fillHelp();
-    $('how').textContent = ship.on ? HOW_FLY : HOW_WALK;
+    $('how').textContent = ship.on ? HOW_FLY() : HOW_WALK();
   });
   /* ---------- "land here": the reticle under the pointer, and the long press on touch screens ---------- */
   const rayc = new THREE.Raycaster(), unitSphere = new THREE.Sphere(new THREE.Vector3(), 1);
@@ -2273,8 +2283,8 @@ void main(){
   /* ---------- keyboard: shortcuts for the buttons, and a panel that lists the keys of the current view ---------- */
   const HELP = {
     orbit: ['en orbite', [['← → ↑ ↓', 'Tourner autour de la planète (scène active)'], ['+ −', 'Approcher, reculer'], ['Double-clic', 'Se poser à cet endroit']]],
-    surface: ['à pied', [['↑ ↓|Z S', 'Avancer, reculer'], ['← →', 'Tourner'], ['Q D', 'Pas de côté'], ['Maj', 'Courir'], ['V', 'Monter dans le vaisseau'], ['R', 'Redécoller']]],
-    ship: ['en vaisseau', [['← →|Q D', 'Virer'], ['↑ ↓|Z S', 'Monter, descendre'], ['Maj', 'Accélérer'], ['V', 'Revenir à pied'], ['R', 'Redécoller']]],
+    surface: ['à pied', [['↑ ↓|KeyW KeyS', 'Avancer, reculer'], ['← →', 'Tourner'], ['KeyA KeyD', 'Pas de côté'], ['Maj', 'Courir'], ['V', 'Monter dans le vaisseau'], ['R', 'Redécoller']]],
+    ship: ['en vaisseau', [['← →|KeyA KeyD', 'Virer'], ['↑ ↓|KeyW KeyS', 'Monter, descendre'], ['Maj', 'Accélérer'], ['V', 'Revenir à pied'], ['R', 'Redécoller']]],
     system: ['dans le système', [['Clic', 'Ouvrir la fiche d\'un monde, puis s\'y rendre'], ['Échap', 'Fermer la fiche']]],
     always: [['P', 'Mode photo'], ['M', 'Son'], ['?', 'Afficher ou masquer cette aide']]
   };
@@ -2286,7 +2296,7 @@ void main(){
       const dt = document.createElement('dt'), dd = document.createElement('dd');
       row[0].split('|').forEach((grp, gi) => {
         if (gi) dt.appendChild(document.createTextNode('ou'));
-        grp.split(' ').forEach((k) => { const kb = document.createElement('kbd'); kb.textContent = k; dt.appendChild(kb); });
+        grp.split(' ').forEach((k) => { const kb = document.createElement('kbd'); kb.textContent = keycap[k] || k; dt.appendChild(kb); });
       });
       dd.textContent = row[1]; dl.appendChild(dt); dl.appendChild(dd);
     });
@@ -2296,9 +2306,22 @@ void main(){
     $('help').hidden = !on; $('b-help').setAttribute('aria-expanded', String(on));
     if (on) $('help-close').focus(); else if (document.activeElement === $('help-close')) canvas.focus();
   }
+  function relabelKeys() {
+    if (!$('help').hidden) fillHelp();
+    if (mode === 'surface') $('how').textContent = ship.on ? HOW_FLY() : HOW_WALK();
+  }
+  try {
+    if (navigator.keyboard && navigator.keyboard.getLayoutMap) {
+      navigator.keyboard.getLayoutMap().then((m) => {
+        let changed = false; for (const c in KEYCAPS) changed = learnKeycap(c, m.get(c)) || changed;
+        if (changed) relabelKeys();
+      }, () => {});
+    }
+  } catch (e) { /* the language guess stays */ }
   $('b-help').addEventListener('click', () => setHelp($('help').hidden));
   $('help-close').addEventListener('click', () => setHelp(false));
   window.addEventListener('keydown', (ev) => {
+    if (!ev.ctrlKey && !ev.metaKey && !ev.altKey && learnKeycap(ev.code, ev.key)) relabelKeys();
     const tg = ev.target, typing = tg && ((tg.tagName === 'INPUT' && tg.type !== 'range' && tg.type !== 'checkbox') || tg.tagName === 'TEXTAREA');
     if (!typing && !ev.repeat && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
       const k = (ev.key || '').toLowerCase();

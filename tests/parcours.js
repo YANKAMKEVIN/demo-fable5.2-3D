@@ -41,6 +41,8 @@ async function open(browser, opts) {
 }
 
 const helpKeys = (page) => page.evaluate(() => [...document.querySelectorAll('#help-keys dt')].map((d) => [...d.querySelectorAll('kbd')].map((k) => k.textContent).join(' ')));
+const press = (page, code, key) => page.evaluate(([code, key]) => window.dispatchEvent(new KeyboardEvent('keydown', { code, key, bubbles: true })), [code, key]);
+const release = (page, code, key) => page.evaluate(([code, key]) => window.dispatchEvent(new KeyboardEvent('keyup', { code, key, bubbles: true })), [code, key]);
 const shown = (page, id) => page.evaluate((id) => !document.getElementById(id).hidden, id);
 
 async function testLayouts(browser) {
@@ -64,10 +66,19 @@ async function testJourney(browser, locale) {
   await page.waitForFunction(() => !document.getElementById('surface').hidden, null, { timeout: LONG });
   check('posé au sol : réglages masqués, carte de surface affichée', !(await shown(page, 'controls')) && await shown(page, 'surface'));
 
+  // the help names the movement keys of the keyboard the viewer actually types on
   await page.keyboard.press('?');
   check('aide ouverte au sol', await shown(page, 'help'));
   const first = await helpKeys(page);
   check('l\'aide au sol liste avancer et pas de côté', first.some((k) => /↑ ↓/.test(k)) && first.length >= 6, first);
+  await press(page, 'KeyW', 'z'); await press(page, 'KeyA', 'q'); await release(page, 'KeyW', 'z'); await release(page, 'KeyA', 'q');
+  let keys = await helpKeys(page);
+  check('clavier AZERTY : l\'aide montre Z S et Q D', keys.includes('↑ ↓ Z S') && keys.includes('Q D'), keys);
+  check('clavier AZERTY : la consigne dit ZQSD', /ZQSD/.test(await page.textContent('#how')));
+  await press(page, 'KeyW', 'w'); await press(page, 'KeyA', 'a'); await release(page, 'KeyW', 'w'); await release(page, 'KeyA', 'a');
+  keys = await helpKeys(page);
+  check('clavier QWERTY : l\'aide montre W S et A D', keys.includes('↑ ↓ W S') && keys.includes('A D'), keys);
+  check('clavier QWERTY : la consigne dit WASD', /WASD/.test(await page.textContent('#how')));
   await page.keyboard.press('Escape');
   check('Échap ferme l\'aide', !(await shown(page, 'help')));
 
