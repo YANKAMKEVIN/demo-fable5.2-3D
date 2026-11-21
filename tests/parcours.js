@@ -3,7 +3,7 @@
 
     npm install          (une fois ; puis « npx playwright install chromium » si aucun Chromium n'est présent)
     npm test             (parcours complet)
-    npm run test:rapide  (chargement seulement, sans descente)
+    npm run test:rapide  (chargement et vue du système, sans descente)
 
   Sans carte graphique, le rendu logiciel est lent : le parcours complet (atterrissage, vaisseau, redécollage,
   système, voyage) prend quelques minutes. THREE_JS=/chemin/three.min.js sert three.js r128 depuis un fichier
@@ -14,7 +14,7 @@ const fs = require('fs');
 const { chromium } = require('playwright');
 
 const PAGE = 'file://' + path.resolve(process.env.PAGE_FILE || path.join(__dirname, '..', 'index.html'));
-const QUICK = process.argv.includes('--rapide'); // loading only, without the descent
+const QUICK = process.argv.includes('--rapide'); // loading and the system view only, without the descent
 const LONG = 600000; // a software-rendered descent can take minutes
 let failed = 0, passed = 0;
 
@@ -58,9 +58,52 @@ async function testLayouts(browser) {
   }
 }
 
+/* the world card must not hide the labels of the other worlds when there is room elsewhere */
+async function checkWorldCards(page, tag) {
+  await page.click('#b-system');
+  await page.waitForFunction(() => !document.getElementById('syslabels').hidden, null, { timeout: LONG });
+  // wait for the camera to settle: the labels stop sliding across the screen
+  let last = '';
+  for (let k = 0; k < 120; k++) {
+    await page.waitForTimeout(500);
+    const now = await page.evaluate(() => [...document.querySelectorAll('#syslabels button')].map((b) => b.style.transform.replace(/\.\d+/g, '')).join());
+    if (now === last) break; last = now;
+  }
+  const n = await page.locator('#syslabels button').count();
+  check(tag + 'six étiquettes dans le système', n === 6, n);
+  let worst = 0, most = 0, total = 0;
+  for (let i = 0; i < n; i++) {
+    // the labels follow their planets, so the pointer goes to where the label is now, as a hand would
+    await page.mouse.move(5, 5); await page.waitForTimeout(500);
+    const box = await page.locator('#syslabels button').nth(i).boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 4 });
+    await page.waitForTimeout(600);
+    const r = await page.evaluate((i) => {
+      const card = document.getElementById('worldcard').getBoundingClientRect();
+      const btns = [...document.querySelectorAll('#syslabels button')];
+      const ov = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+      const others = btns.filter((b, j) => j !== i && b.style.visibility !== 'hidden').map((b) => b.getBoundingClientRect());
+      // a label is masked when the card sits on its centre: the pointer would land on the card instead
+      const masked = others.filter((b) => { const cx = (b.left + b.right) / 2, cy = (b.top + b.bottom) / 2; return cx > card.left && cx < card.right && cy > card.top && cy < card.bottom; }).length;
+      return { open: !document.getElementById('worldcard').hidden && document.getElementById('wc-name').textContent === btns[i].querySelector('span').textContent, masked, own: ov(card, btns[i].getBoundingClientRect()) };
+    }, i);
+    if (!r.open) { check(tag + 'fiche ouverte au survol du monde ' + i, false); continue; }
+    worst = Math.max(worst, r.own);
+    most = Math.max(most, r.masked); total += r.masked;
+  }
+  check(tag + 'aucune fiche ne recouvre sa propre étiquette', worst === 0, worst);
+  // the card stays beside its label, so in a crowded view it may still sit on one neighbour, never on several
+  check(tag + 'aucune fiche ne masque plus d\'une étiquette voisine', most <= 1, { most, total });
+  console.log('       (étiquettes masquées, toutes fiches confondues : ' + total + ')');
+}
+
 async function testJourney(browser, locale) {
   console.log('Parcours complet (' + locale + ')');
   const { ctx, page, errors } = await open(browser, { viewport: { width: 960, height: 600 }, locale });
+  await checkWorldCards(page, 'système : ');
+  await page.click('#sysback');
+  await page.waitForFunction(() => !document.getElementById('controls').hidden, null, { timeout: LONG });
+
   // landing
   await page.click('#land');
   await page.waitForFunction(() => !document.getElementById('surface').hidden, null, { timeout: LONG });
@@ -111,7 +154,13 @@ async function testJourney(browser, locale) {
   const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   try {
     await testLayouts(browser);
-    if (!QUICK) await testJourney(browser, 'fr-FR');
+    if (QUICK) {
+      console.log('Système (rapide)');
+      const { ctx, page, errors } = await open(browser, { viewport: { width: 960, height: 600 } });
+      await checkWorldCards(page, 'système : ');
+      check('aucune erreur dans le système', errors.length === 0, errors);
+      await ctx.close();
+    } else await testJourney(browser, 'fr-FR');
   } catch (e) {
     failed++; console.log('  ÉCHEC exception : ' + e.message.split('\n')[0]);
   } finally {

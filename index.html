@@ -2423,7 +2423,7 @@ void main(){
       fillWorld(w);
     });
   }
-  const wcard = { el: $('worldcard'), i: -1, pinned: false, t: 0, w: 248, h: 180 };
+  const wcard = { el: $('worldcard'), i: -1, pinned: false, t: 0, w: 248, h: 180, side: '' };
   function openWorldCard(i, pinned) {
     clearTimeout(wcard.t);
     const w = worlds[i], P = PRESETS[w.preset], gasW = !!P.gas, here = i === active;
@@ -2441,8 +2441,45 @@ void main(){
     $('wc-name').textContent = w.name; $('wc-type').textContent = '· ' + P.type;
     $('wc-here').hidden = !here; $('wc-go').textContent = here ? 'Y retourner' : 'S\'y rendre';
     worlds.forEach((x, j) => x.btn.classList.toggle('open', j === i));
+    if (wcard.i !== i) wcard.side = '';
     wcard.i = i; wcard.pinned = pinned; wcard.el.hidden = false;
     wcard.w = wcard.el.offsetWidth; wcard.h = wcard.el.offsetHeight;
+    worlds.forEach((x) => { x.bw = x.btn.offsetWidth; x.bh = x.btn.offsetHeight; });
+    const sr = stage.getBoundingClientRect(), pr = $('syscard').getBoundingClientRect();
+    wcard.panel = { x: pr.left - sr.left, y: pr.top - sr.top, w: pr.width, h: pr.height };
+  }
+  /* the card hangs beside its label (under it first, then above, right, left, each in two alignments), on the side
+     that hides the fewest other labels, and never leaves the screen; it only changes side when that clearly
+     uncovers more */
+  const CARD_SIDES = ['below', 'below-end', 'above', 'above-end', 'right', 'right-end', 'left', 'left-end'];
+  function cardSpot(side, l, cw, ch, W, H) {
+    const end = side.endsWith('-end'), s = end ? side.slice(0, -4) : side;
+    const x = s === 'right' ? l.x + l.w + 8 : s === 'left' ? l.x - cw - 8 : (end ? l.x + l.w - cw : l.x);
+    const y = s === 'below' ? l.y + l.h + 6 : s === 'above' ? l.y - ch - 6 : (end ? l.y + l.h - ch : l.y);
+    return { x: clamp(x, 8, Math.max(8, W - cw - 8)), y: clamp(y, 8, Math.max(8, H - ch - 8)) };
+  }
+  const overlap = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+  const onCentre = (r, o) => o.x + o.w / 2 > r.x && o.x + o.w / 2 < r.x + r.w && o.y + o.h / 2 > r.y && o.y + o.h / 2 < r.y + r.h;
+  function pickCardSide(own, labels, panel, cw, ch, W, H, prev) {
+    let best = null;
+    CARD_SIDES.forEach((side, k) => {
+      const p = cardSpot(side, own, cw, ch, W, H), r = { x: p.x, y: p.y, w: cw, h: ch };
+      // covering its own label is ruled out whenever another side can avoid it; a label whose middle is hidden
+      // can no longer be pointed at, so it costs a whole label more; the panel counts for half; later sides cost a little more
+      let cost = overlap(r, own) * 100 + k * 30;
+      labels.forEach((o) => { cost += overlap(r, o) + (onCentre(r, o) ? o.w * o.h * 2 : 0); });
+      if (panel) cost += overlap(r, panel) * 0.5;
+      if (side === prev) cost -= 300;
+      if (!best || cost < best.cost) best = { side, x: p.x, y: p.y, cost };
+    });
+    return best;
+  }
+  function placeWorldCard(w, W, H) {
+    const rect = (x) => ({ x: x.lx, y: x.ly, w: x.bw, h: x.bh });
+    const others = worlds.filter((x) => x !== w && x.lv).map(rect);
+    const b = pickCardSide(rect(w), others, wcard.panel && wcard.panel.w ? wcard.panel : null, wcard.w, wcard.h, W, H, wcard.side);
+    wcard.side = b.side;
+    wcard.el.style.transform = 'translate(' + b.x.toFixed(1) + 'px,' + b.y.toFixed(1) + 'px)';
   }
   function closeWorldCard() {
     clearTimeout(wcard.t);
@@ -2503,12 +2540,9 @@ void main(){
       w.btn.style.visibility = v3.z < 1 ? 'visible' : 'hidden';
       const lx = (v3.x * 0.5 + 0.5) * W + 14, ly = (-v3.y * 0.5 + 0.5) * H - 16;
       w.btn.style.transform = 'translate(' + lx.toFixed(1) + 'px,' + ly.toFixed(1) + 'px)';
-      if (worlds[wcard.i] === w) {
-        // the card hangs under its label, or above it near the bottom of the screen, and never leaves the screen
-        const bh = w.btn.offsetHeight, below = ly + bh + 6, cy = below + wcard.h > H - 8 ? ly - wcard.h - 6 : below;
-        wcard.el.style.transform = 'translate(' + clamp(lx, 8, Math.max(8, W - wcard.w - 8)).toFixed(1) + 'px,' + clamp(cy, 8, Math.max(8, H - wcard.h - 8)).toFixed(1) + 'px)';
-      }
+      w.lx = lx; w.ly = ly; w.lv = v3.z < 1;
     });
+    if (wcard.i >= 0) placeWorldCard(worlds[wcard.i], W, H);
     renderer.render(sysScene, sysCam);
   }
   $('b-system').addEventListener('click', enterSystem);
