@@ -16,7 +16,7 @@ Construit au fil d'une conversation avec Claude (Anthropic).
 | ![Vue du système et de ses six mondes](docs/04-systeme.png) Le système et ses six mondes | ![Fin de la descente : la côte, un bosquet et un troupeau](docs/05-descente.png) Fin de la descente |
 | ![Au sol : troupeau, forêt, volants et anneaux dans le ciel](docs/06-au-sol.png) Au sol, à pied | ![En vaisseau au-dessus d'un troupeau](docs/07-en-vaisseau.png) En vaisseau |
 
-Ces captures viennent de `index.html`, sans retouche. Elles ont été prises avec un rendu logiciel (sans carte graphique) : sur une vraie machine, l'image est la même mais fluide.
+Ces captures viennent de `index.html`, sans retouche ; les trois du sol (descente, à pied, en vaisseau) datent d'avant la refonte de l'interface. Elles ont été prises avec un rendu logiciel (sans carte graphique) : sur une vraie machine, l'image est la même mais fluide.
 
 ## Lancer la démo
 
@@ -54,4 +54,18 @@ Pour la mettre en ligne, activez GitHub Pages sur la branche principale : `index
 
 ## Tests
 
-La démo n'a
+La démo n'a besoin de rien d'autre que `index.html`. Les tests, eux, pilotent un vrai Chromium avec Playwright :
+
+```
+npm install
+npm test             # parcours complet : chargement, système, atterrissage, aide clavier, vaisseau, redécollage, voyage
+npm run test:rapide  # chargement (bureau et téléphone) et fiches des mondes, sans descente
+```
+
+Sans carte graphique, le rendu logiciel rend le parcours complet lent (plusieurs minutes). Si le CDN n'est pas joignable, `THREE_JS=/chemin/three.min.js` sert three.js r128 depuis un fichier local.
+
+## Limites connues
+
+- La vue du sol est exigeante pour la carte graphique ; la résolution baisse automatiquement si l'appareil peine.
+- Les mondes de lave, de glace et de désert ont été parcourus en rendu logiciel (atterrissage, marche, vaisseau, redécollage) sans erreur, mais pas regardés sur une vraie carte graphique. Le son et la navigation tactile n'ont été vérifiés qu'en émulation, sans écoute ni vrai écran tactile.
+- Les chasses des prédateurs n'aboutissent jamais : la proie s'échappe toujours.
